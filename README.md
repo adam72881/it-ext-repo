@@ -27,7 +27,7 @@ Repository separato, solo questa estensione:
 https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/index.min.json
 ```
 
-Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.2. Serve a sfogliare il proprio account Instagram dentro il lettore.
+Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.3. Serve a sfogliare il proprio account Instagram dentro il lettore.
 
 1. Aggiungi il repository qui sopra, aggiorna, e installa **Instagram**.
 2. Apri la WebView della sorgente e accedi al tuo account. L'estensione riusa i cookie `sessionid`, `csrftoken` e `ds_user_id`. Se mancano, compare un errore che chiede di entrare dalla WebView.

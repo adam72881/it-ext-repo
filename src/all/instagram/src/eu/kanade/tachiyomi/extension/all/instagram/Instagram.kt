@@ -13,21 +13,12 @@ import keiyoushi.network.get
 import keiyoushi.network.post
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
-import keiyoushi.utils.getArrayOrNull
-import keiyoushi.utils.getBooleanOrNull
-import keiyoushi.utils.getIntOrNull
-import keiyoushi.utils.getObjectOrNull
-import keiyoushi.utils.getStringOrNull
 import keiyoushi.utils.jsonInstance
-import keiyoushi.utils.stringOrNull
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import okhttp3.CacheControl
 import okhttp3.FormBody
 import okhttp3.Headers
@@ -353,15 +344,28 @@ abstract class Instagram : KeiSource() {
 
     private suspend fun fetchMedia(code: String): JsonObject {
         val clean = code.trim()
-        medias[clean]?.let { return it }
         if (medias.size > 80) medias.clear()
-        val data = getJson(apiUrl("api/v1/media/${idFromShortcode(clean)}/info/"))
-        val items = data.getArrayOrNull("items").orEmpty().mapNotNull { it.asObject() }
-        val media = items.firstOrNull { it.getStringOrNull("code") == clean }
-            ?: items.firstOrNull()
-            ?: throw IOException("Post non trovato o non disponibile.")
-        medias[clean] = media
-        return media
+        val cached = medias[clean]
+        val fresh = try {
+            val data = getJson(apiUrl("api/v1/media/${idFromShortcode(clean)}/info/"))
+            val items = data.getArrayOrNull("items").orEmpty().mapNotNull { it.asObject() }
+            items.firstOrNull { it.getStringOrNull("code") == clean || it.getStringOrNull("shortcode") == clean }
+                ?: items.firstOrNull()
+        } catch (error: InstagramHttpException) {
+            if (cached != null && error.kind != Failure.LOGIN && error.kind != Failure.CHECKPOINT) {
+                null
+            } else {
+                throw error
+            }
+        }
+        val chosen = when {
+            fresh == null -> cached
+            cached == null -> fresh
+            pageUrls(fresh).size < pageUrls(cached).size -> cached
+            else -> fresh
+        } ?: throw IOException("Post non trovato o non disponibile.")
+        medias[clean] = chosen
+        return chosen
     }
 
     private suspend fun loadProfileChapters(user: JsonObject?, username: String): ChapterLoad {
@@ -372,27 +376,42 @@ abstract class Instagram : KeiSource() {
         }
 
         val chapters = mutableListOf<SChapter>()
-        // The profile response already carries the newest posts. Using them avoids a second call.
-        if (user != null) timelineEdgeChapters(user).forEach { addChapter(chapters, it) }
+        var sawPhoto = false
+        fun take(media: JsonObject) {
+            val chapter = runCatching { mediaToChapter(media) }.getOrNull() ?: return
+            remember(media)
+            if (countsAsPhoto(media)) sawPhoto = true
+            addChapter(chapters, chapter)
+        }
+        // Logged-in web_profile_info often sets edges to null. That must not abort the list.
+        if (user != null) {
+            runCatching { profilePostNodes(user) }.getOrDefault(emptyList()).forEach(::take)
+        }
 
         val userId = user?.let(::userIdOf)
         var feedError: InstagramHttpException? = null
-        if (userId != null && chapters.size < MAX_PROFILE_POSTS) {
+        if (chapters.isEmpty() && userId != null) {
             try {
-                appendFeed(userId, username, chapters)
+                appendFeed(userId, username, ::take)
             } catch (error: InstagramHttpException) {
                 if (error.kind == Failure.LOGIN || error.kind == Failure.CHECKPOINT) throw error
                 feedError = error
             }
         }
 
-        if (chapters.isEmpty()) {
-            if (feedError != null && feedError.kind == Failure.RATE) throw feedError
+        // A reels-only feed must not hide the photo grid. Ask the web posts query and keep its order.
+        if (!sawPhoto) {
+            val videosOnly = chapters.toList()
+            chapters.clear()
             try {
-                appendGraphqlPosts(username, chapters)
+                appendGraphqlPosts(username, ::take)
             } catch (error: InstagramHttpException) {
-                if (chapters.isEmpty()) throw feedError ?: error
+                if (chapters.isEmpty()) {
+                    chapters.addAll(videosOnly)
+                    throw feedError ?: error
+                }
             }
+            videosOnly.forEach { addChapter(chapters, it) }
         }
         if (chapters.isEmpty()) {
             throw feedError ?: IOException("Questo profilo non ha post visibili.")
@@ -406,10 +425,11 @@ abstract class Instagram : KeiSource() {
         return ChapterLoad(chapters, truncated)
     }
 
-    private suspend fun appendFeed(userId: String, username: String, chapters: MutableList<SChapter>) {
+    private suspend fun appendFeed(userId: String, username: String, take: (JsonObject) -> Unit) {
         var cursor: String? = null
         var guard = 0
-        while (chapters.size < MAX_PROFILE_POSTS && guard < 4) {
+        var added = 0
+        while (added < MAX_PROFILE_POSTS && guard < 4) {
             guard++
             val query = mutableMapOf("count" to PROFILE_PAGE_SIZE.toString())
             if (cursor != null) query["max_id"] = cursor
@@ -419,19 +439,22 @@ abstract class Instagram : KeiSource() {
             )
             val items = data.getArrayOrNull("items").orEmpty().mapNotNull { it.asObject() }
             if (items.isEmpty()) break
-            items.forEach { addChapter(chapters, mediaToChapter(it)) }
+            items.forEach { item ->
+                take(item)
+                added++
+            }
             val next = data.getStringOrNull("next_max_id")
             val more = data.getBooleanOrNull("more_available") == true && !next.isNullOrBlank()
-            if (!more || chapters.size >= MAX_PROFILE_POSTS) break
+            if (!more) break
             cursor = next
         }
     }
 
-    private suspend fun appendGraphqlPosts(username: String, chapters: MutableList<SChapter>) {
+    private suspend fun appendGraphqlPosts(username: String, take: (JsonObject) -> Unit) {
         val tokens = webApiTokens(username)
         var after: String? = null
         var guard = 0
-        while (chapters.size < MAX_PROFILE_POSTS && guard < 4) {
+        while (guard < 4) {
             guard++
             val form = linkedMapOf(
                 "av" to tokens.actorId,
@@ -461,12 +484,12 @@ abstract class Instagram : KeiSource() {
             if (edges.isEmpty()) break
             edges.forEach { edge ->
                 val node = edge.asObject()?.getObjectOrNull("node") ?: return@forEach
-                addChapter(chapters, mediaToChapter(node))
+                take(node)
             }
             val pageInfo = connection.getObjectOrNull("page_info")
             val next = pageInfo?.getStringOrNull("end_cursor")
             val more = pageInfo?.getBooleanOrNull("has_next_page") == true && !next.isNullOrBlank()
-            if (!more || chapters.size >= MAX_PROFILE_POSTS) break
+            if (!more) break
             after = next
         }
     }
@@ -496,9 +519,13 @@ abstract class Instagram : KeiSource() {
         return WebTokens(session, dtsg, lsd, actor).also { webTokens = it }
     }
 
-    private fun timelineEdgeChapters(user: JsonObject): List<SChapter> {
-        val edges = user.getObjectOrNull("edge_owner_to_timeline_media")?.getArrayOrNull("edges").orEmpty()
-        return edges.mapNotNull { edge -> edge.asObject()?.getObjectOrNull("node")?.let { mediaToChapter(it) } }
+    private fun remember(media: JsonObject) {
+        val code = media.getStringOrNull("code") ?: media.getStringOrNull("shortcode") ?: return
+        if (medias.size > 80) medias.clear()
+        val existing = medias[code]
+        if (existing == null || pageUrls(media).size > pageUrls(existing).size) {
+            medias[code] = media
+        }
     }
 
     private fun addChapter(chapters: MutableList<SChapter>, chapter: SChapter?) {
@@ -589,16 +616,16 @@ abstract class Instagram : KeiSource() {
     }
 
     private fun chapterName(media: JsonObject): String {
-        val carousel = media.getArrayOrNull("carousel_media")
-        val sidecar = media.getObjectOrNull("edge_sidecar_to_children")?.getArrayOrNull("edges")
-        val carouselCount = carousel?.size ?: sidecar?.size ?: 0
-        val childVideo = carousel?.any { element ->
+        val count = carouselCount(media)
+        val childVideo = media.getArrayOrNull("carousel_media").orEmpty().any { element ->
             element.asObject()?.let { isVideo(it) } == true
-        } == true
+        } || media.getObjectOrNull("edge_sidecar_to_children")?.getArrayOrNull("edges").orEmpty().any { edge ->
+            edge.asObject()?.getObjectOrNull("node")?.let { isVideo(it) } == true
+        }
         val video = isVideo(media) || childVideo
         val kind = when {
-            carouselCount > 1 && video -> "Carosello · copertine"
-            carouselCount > 1 -> "Carosello · $carouselCount foto"
+            count > 1 && video -> "Carosello · copertine"
+            count > 1 -> "Carosello · $count foto"
             video -> "Video · copertina"
             else -> "Foto"
         }
@@ -606,39 +633,6 @@ abstract class Instagram : KeiSource() {
         val date = takenAt?.let { chapterDate.format(Instant.ofEpochSecond(it)) }
         val caption = snippet(captionOf(media), 48)
         return listOfNotNull(kind, date, caption.takeIf { it.isNotBlank() }).joinToString(" · ")
-    }
-
-    private fun pageUrls(media: JsonObject): List<String> {
-        val carousel = media.getArrayOrNull("carousel_media")
-        if (carousel != null && carousel.isNotEmpty()) {
-            val urls = carousel.mapNotNull { element -> element.asObject()?.let { bestImage(it) } }
-            if (urls.isNotEmpty()) return urls
-        }
-        val sidecar = media.getObjectOrNull("edge_sidecar_to_children")?.getArrayOrNull("edges")
-        if (sidecar != null && sidecar.isNotEmpty()) {
-            val urls = sidecar.mapNotNull { edge ->
-                edge.asObject()?.getObjectOrNull("node")?.let { bestImage(it) }
-            }
-            if (urls.isNotEmpty()) return urls
-        }
-        return listOfNotNull(bestImage(media))
-    }
-
-    private fun bestImage(media: JsonObject): String? {
-        val ranked = media.getObjectOrNull("image_versions2")
-            ?.getArrayOrNull("candidates")
-            .orEmpty()
-            .mapNotNull { element ->
-                val node = element.asObject() ?: return@mapNotNull null
-                val url = node.getStringOrNull("url") ?: return@mapNotNull null
-                url to (node.getIntOrNull("width") ?: 0)
-            }
-            .sortedByDescending { it.second }
-        val preferred = ranked.firstOrNull { !it.first.contains(".heic", ignoreCase = true) } ?: ranked.firstOrNull()
-        if (preferred != null) return preferred.first
-        return media.getStringOrNull("display_url")
-            ?: media.getStringOrNull("thumbnail_url")
-            ?: media.getStringOrNull("thumbnail_src")
     }
 
     private fun profilePic(user: JsonObject): String? = user.getStringOrNull("profile_pic_url_hd")
@@ -650,26 +644,6 @@ abstract class Instagram : KeiSource() {
 
     private fun followingCount(user: JsonObject): Long? = user.getObjectOrNull("edge_follow")?.longFlexible("count")
         ?: user.longFlexible("following_count")
-
-    private fun captionOf(media: JsonObject): String {
-        val fromEdge = media.getObjectOrNull("edge_media_to_caption")
-            ?.getArrayOrNull("edges")
-            ?.firstOrNull()
-            ?.asObject()
-            ?.getObjectOrNull("node")
-            ?.getStringOrNull("text")
-        if (!fromEdge.isNullOrBlank()) return fromEdge
-        val caption = media["caption"] ?: return ""
-        if (caption is JsonNull) return ""
-        return caption.asObject()?.getStringOrNull("text") ?: caption.stringOrNull.orEmpty()
-    }
-
-    private fun isVideo(media: JsonObject): Boolean {
-        if (media.getIntOrNull("media_type") == 2) return true
-        if (media.getBooleanOrNull("is_video") == true) return true
-        val product = media.getStringOrNull("product_type")
-        return product == "clips" || product == "igtv"
-    }
 
     private fun timelineMedias(data: JsonObject): List<JsonObject> {
         val feedItems = data.getArrayOrNull("feed_items")
@@ -782,7 +756,8 @@ abstract class Instagram : KeiSource() {
         if (text.trimStart().startsWith("<")) throw InstagramHttpException(Failure.OTHER, htmlMessage(text))
 
         val data = try {
-            jsonInstance.parseToJsonElement(text).jsonObject
+            jsonInstance.parseToJsonElement(text).asObject()
+                ?: throw IllegalArgumentException("not an object")
         } catch (_: Exception) {
             throw InstagramHttpException(
                 Failure.OTHER,
@@ -955,14 +930,6 @@ abstract class Instagram : KeiSource() {
     }
 
     private fun formatCount(value: Long): String = "%,d".format(Locale.ITALY, value)
-
-    private fun JsonElement.asObject(): JsonObject? = this as? JsonObject
-
-    private fun JsonObject.longFlexible(key: String): Long? {
-        val element = this[key] ?: return null
-        if (element is JsonNull) return null
-        return element.jsonPrimitive.longOrNull ?: element.jsonPrimitive.content.toLongOrNull()
-    }
 
     private class HashtagFilter : Filter.Text("Hashtag")
 
