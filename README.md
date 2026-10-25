@@ -21,10 +21,10 @@ L'app, se segue il formato attuale, legge anche `repo.json` e `index.pb` nella s
 
 ## Uso
 
-Estensione sperimentale, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.4.
+Estensione sperimentale, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.5.
 
 1. Apri la WebView della sorgente e accedi al tuo account. L'estensione riusa i cookie `sessionid`, `csrftoken` e `ds_user_id`. Se mancano, compare un errore che chiede di entrare dalla WebView.
-2. **Popolari** è la home: ogni post del feed è una voce, con la sua copertina, e lo scorrimento carica le pagine successive. **Recenti** sono i post degli account che segui, dalla stessa timeline.
+2. **Popolari** è la home: ogni post è una voce, con la copertina, e lo scorrimento carica le pagine successive. **Seguiti** sta nei filtri della ricerca (Feed → Seguiti): l'app non lascia rinominare la scheda Più Recenti, quindi quella scheda non c'è. Seguiti carica i post recenti di quattro account seguiti per volta.
 3. La ricerca trova profili. Puoi incollare un URL di profilo o di post, oppure scrivere un nome utente. Il filtro Hashtag, se compilato, mostra i post recenti di quel tag.
 4. In un profilo i capitoli sono i post, dal più nuovo, fino a 48. Le pagine sono le immagini del post, nell'ordine del carosello. Video e reel mostrano solo la copertina.
 
