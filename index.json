@@ -27,27 +27,6 @@
             "homeUrl": "https://hentai-ita.net"
           }
         ]
-      },
-      {
-        "name": "Instagram",
-        "packageName": "eu.kanade.tachiyomi.extension.all.instagram",
-        "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-all.instagram-v1.6.1.apk",
-          "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.all.instagram.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-all.instagram-v1.6.1.jar"
-        },
-        "extensionLib": "1.6",
-        "versionCode": "106001",
-        "versionName": "1.6.1",
-        "contentWarning": "CONTENT_WARNING_MIXED",
-        "sources": [
-          {
-            "id": "2435173718898269560",
-            "name": "Instagram",
-            "language": "all",
-            "homeUrl": "https://www.instagram.com"
-          }
-        ]
       }
     ]
   }
