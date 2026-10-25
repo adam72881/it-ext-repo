@@ -21,7 +21,7 @@ L'app, se segue il formato attuale, legge anche `repo.json` e `index.pb` nella s
 
 ## Uso
 
-Estensione sperimentale, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.2.
+Estensione sperimentale, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.3.
 
 1. Apri la WebView della sorgente e accedi al tuo account. L'estensione riusa i cookie `sessionid`, `csrftoken` e `ds_user_id`. Se mancano, compare un errore che chiede di entrare dalla WebView.
 2. **Popolari** è la home: ogni post del feed è una voce, con la sua copertina. **Recenti** sono gli account che segui.

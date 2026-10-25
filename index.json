@@ -11,13 +11,13 @@
         "name": "Instagram",
         "packageName": "eu.kanade.tachiyomi.extension.all.instagram",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/apk/tachiyomi-all.instagram-v1.6.2.apk",
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/apk/tachiyomi-all.instagram-v1.6.3.apk",
           "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/icon/eu.kanade.tachiyomi.extension.all.instagram.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/jar/tachiyomi-all.instagram-v1.6.2.jar"
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/jar/tachiyomi-all.instagram-v1.6.3.jar"
         },
         "extensionLib": "1.6",
-        "versionCode": "106002",
-        "versionName": "1.6.2",
+        "versionCode": "106003",
+        "versionName": "1.6.3",
         "contentWarning": "CONTENT_WARNING_MIXED",
         "sources": [
           {
