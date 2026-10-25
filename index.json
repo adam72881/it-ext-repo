@@ -1,0 +1,33 @@
+{
+  "name": "it-ext",
+  "badgeLabel": "EXT",
+  "signingKey": "0708bb69915e2f22b94d0f229769dcd3555b3913d94d6b277ae106fd354a9a85",
+  "contact": {
+    "website": "https://github.com/adam72881/it-ext-repo"
+  },
+  "extensionList": {
+    "extensions": [
+      {
+        "name": "Hentai ITA",
+        "packageName": "eu.kanade.tachiyomi.extension.it.hentaiita",
+        "resources": {
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaiita-v1.6.1.apk",
+          "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png",
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaiita-v1.6.1.jar"
+        },
+        "extensionLib": "1.6",
+        "versionCode": "106001",
+        "versionName": "1.6.1",
+        "contentWarning": "CONTENT_WARNING_NSFW",
+        "sources": [
+          {
+            "id": "5279259667822182743",
+            "name": "Hentai ITA",
+            "language": "it",
+            "homeUrl": "https://hentai-ita.net"
+          }
+        ]
+      }
+    ]
+  }
+}
