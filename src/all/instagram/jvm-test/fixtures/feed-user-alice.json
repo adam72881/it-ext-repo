@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "code": "AlicePhoto",
+      "pk": "9001",
+      "media_type": 1,
+      "taken_at": 1700000100,
+      "caption": {"text": "Foto intera di Alice", "pk": "1"},
+      "carousel_media": null,
+      "image_versions2": {
+        "candidates": [
+          {"url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-15/alice-thumb.jpg", "width": 150, "height": 150},
+          {"url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-15/alice-full.jpg", "width": 1080, "height": 1350},
+          {"url": "https://instagram.com/static/images/placeholder.png", "width": 1080, "height": 1350}
+        ]
+      },
+      "user": {"pk": 101, "username": "alice", "full_name": "Alice Rossi"},
+      "friendship_status": {"following": true}
+    },
+    {
+      "ad_id": "999",
+      "code": "AliceAd",
+      "media_type": 1,
+      "taken_at": 1700000500,
+      "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/ad.jpg", "width": 1080, "height": 1080}]},
+      "user": {"pk": 101, "username": "alice"}
+    }
+  ],
+  "more_available": true,
+  "next_max_id": "alice-2",
+  "status": "ok"
+}

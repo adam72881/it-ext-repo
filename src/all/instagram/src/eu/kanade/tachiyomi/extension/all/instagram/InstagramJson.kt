@@ -79,49 +79,74 @@ internal fun captionOf(media: JsonObject): String {
 }
 
 internal fun pageUrls(media: JsonObject): List<String> {
+    val raw = carouselImageUrls(media).ifEmpty { listOfNotNull(bestImage(media)) }
+    val seen = linkedSetOf<String>()
+    raw.forEach { url ->
+        val clean = usableImageUrl(url) ?: return@forEach
+        seen += clean
+    }
+    return seen.toList()
+}
+
+private fun carouselImageUrls(media: JsonObject): List<String> {
     val carousel = media.getArrayOrNull("carousel_media").orEmpty()
     if (carousel.isNotEmpty()) {
-        val urls = carousel.mapNotNull { element -> element.asObject()?.let { bestImage(it) } }
-        if (urls.isNotEmpty()) return urls
+        return carousel.mapNotNull { element -> element.asObject()?.let { bestImage(it) } }
     }
     val sidecar = media.getObjectOrNull("edge_sidecar_to_children")?.getArrayOrNull("edges").orEmpty()
-    if (sidecar.isNotEmpty()) {
-        val urls = sidecar.mapNotNull { edge ->
-            edge.asObject()?.getObjectOrNull("node")?.let { bestImage(it) }
-        }
-        if (urls.isNotEmpty()) return urls
+    if (sidecar.isEmpty()) return emptyList()
+    return sidecar.mapNotNull { edge ->
+        edge.asObject()?.getObjectOrNull("node")?.let { bestImage(it) }
     }
-    return listOfNotNull(bestImage(media))
 }
 
 internal fun bestImage(media: JsonObject): String? {
-    val ranked = media.getObjectOrNull("image_versions2")
-        ?.getArrayOrNull("candidates")
-        .orEmpty()
-        .mapNotNull { element ->
-            val node = element.asObject() ?: return@mapNotNull null
-            val url = node.getStringOrNull("url") ?: return@mapNotNull null
-            val width = node.getIntOrNull("width") ?: 0
-            val height = node.getIntOrNull("height") ?: 0
-            Candidate(url, width, if (height > 0) height else 1)
-        }
-        .sortedByDescending { it.width.toLong() * it.height }
+    val ranked = imageCandidates(media.getObjectOrNull("image_versions2")?.getArrayOrNull("candidates"), "url", "width", "height")
     val jpeg = ranked.filter { !it.url.contains(".heic", ignoreCase = true) }
-    val best = (if (jpeg.isNotEmpty()) jpeg else ranked).firstOrNull()
-    val display = media.getStringOrNull("display_url")
-    if (best != null && best.width >= 480) return best.url
-    if (!display.isNullOrBlank()) return display
-    val resource = media.getArrayOrNull("display_resources")
-        .orEmpty()
-        .mapNotNull { element ->
-            val node = element.asObject() ?: return@mapNotNull null
-            val src = node.getStringOrNull("src") ?: return@mapNotNull null
-            Candidate(src, node.getIntOrNull("config_width") ?: 0, node.getIntOrNull("config_height") ?: 1)
-        }
-        .maxByOrNull { it.width.toLong() * it.height }
-    if (resource != null && resource.width >= (best?.width ?: 0)) return resource.url
-    if (best != null) return best.url
-    return media.getStringOrNull("thumbnail_url") ?: media.getStringOrNull("thumbnail_src")
+    val pool = if (jpeg.isNotEmpty()) jpeg else ranked
+    val cdnLarge = pool.filter { it.width >= 480 && isInstagramCdnUrl(it.url) }.maxByOrNull { it.pixels }
+    if (cdnLarge != null) return cdnLarge.url
+    val display = usableImageUrl(media.getStringOrNull("display_url"))
+    if (display != null && isInstagramCdnUrl(display)) return display
+    val anyLarge = pool.filter { it.width >= 480 }.maxByOrNull { it.pixels }
+    if (anyLarge != null) return anyLarge.url
+    if (display != null) return display
+    val resource = imageCandidates(media.getArrayOrNull("display_resources"), "src", "config_width", "config_height")
+    val resourceCdn = resource.filter { isInstagramCdnUrl(it.url) }.maxByOrNull { it.pixels }
+    if (resourceCdn != null) return resourceCdn.url
+    val resourceBest = resource.maxByOrNull { it.pixels }
+    if (resourceBest != null) return resourceBest.url
+    val cdnAny = pool.filter { isInstagramCdnUrl(it.url) }.maxByOrNull { it.pixels }
+    if (cdnAny != null) return cdnAny.url
+    pool.maxByOrNull { it.pixels }?.url?.let { return it }
+    return usableImageUrl(media.getStringOrNull("thumbnail_url"))
+        ?: usableImageUrl(media.getStringOrNull("thumbnail_src"))
 }
 
-private data class Candidate(val url: String, val width: Int, val height: Int)
+internal fun usableImageUrl(raw: String?): String? {
+    val url = raw?.trim().orEmpty()
+    if (!url.startsWith("https://")) return null
+    val lower = url.lowercase()
+    if ("placeholder" in lower || "/rsrc.php" in lower || lower.startsWith("data:")) return null
+    return url
+}
+
+internal fun isInstagramCdnUrl(url: String): Boolean {
+    val host = url.substringAfter("://", "").substringBefore('/').substringBefore(':').lowercase()
+    return "cdninstagram" in host || "scontent" in host || "fbcdn.net" in host
+}
+
+private fun imageCandidates(nodes: JsonArray?, urlKey: String, widthKey: String, heightKey: String): List<Candidate> {
+    if (nodes == null) return emptyList()
+    return nodes.mapNotNull { element ->
+        val node = element.asObject() ?: return@mapNotNull null
+        val url = usableImageUrl(node.getStringOrNull(urlKey)) ?: return@mapNotNull null
+        val width = node.getIntOrNull(widthKey) ?: 0
+        val height = node.getIntOrNull(heightKey) ?: 0
+        Candidate(url, width, if (height > 0) height else 1)
+    }
+}
+
+private data class Candidate(val url: String, val width: Int, val height: Int) {
+    val pixels: Long get() = width.toLong() * height
+}

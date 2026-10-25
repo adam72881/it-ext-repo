@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "code": "CaraReel",
+      "media_type": 2,
+      "product_type": "clips",
+      "taken_at": 1700000200,
+      "caption": {"text": "Solo copertina"},
+      "video_versions": [{"url": "https://scontent.cdninstagram.com/v/cara.mp4", "width": 720, "height": 1280}],
+      "image_versions2": {
+        "candidates": [
+          {"url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-15/cara-cover.jpg", "width": 1080, "height": 1920},
+          {"url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-15/cara-thumb.jpg", "width": 150, "height": 150}
+        ]
+      },
+      "carousel_media": null,
+      "user": {"pk": 103, "username": "cara", "full_name": "Cara"}
+    }
+  ],
+  "status": "ok"
+}
