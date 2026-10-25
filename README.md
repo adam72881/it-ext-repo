@@ -21,7 +21,7 @@ L'app, se segue il formato attuale, legge anche `repo.json` e `index.pb` nella s
 
 ## Contenuto
 
-Sorgente italiana per la sezione manga di hentai-ita.net. I tag loli, shota, teen e gli altri che indicano minori sono esclusi e non si possono riattivare. Le pagine nell'area premium non vengono aperte. Le richieste al sito sono rallentate di proposito.
+Sorgente italiana per la sezione manga di hentai-ita.net. I tag loli, shota e gli altri che indicano minori sono esclusi e non si possono riattivare. I titoli con tag teen restano in elenco. Le pagine nell'area premium non vengono aperte. Le richieste al sito sono rallentate di proposito.
 
 ## File
 
