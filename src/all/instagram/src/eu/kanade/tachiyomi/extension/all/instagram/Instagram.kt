@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.CacheControl
 import okhttp3.FormBody
 import okhttp3.Headers
@@ -47,9 +48,9 @@ import kotlin.time.Duration.Companion.seconds
  * password, and API calls are serialized so Instagram is not hit in parallel.
  *
  * Popolari is the logged-in home timeline: each post is one entry, and opening
- * it shows that post's images. Recenti is the accounts that user follows.
- * Search returns profiles. A profile URL or a plain username opens that
- * profile directly. The optional Hashtag filter lists recent posts for a tag.
+ * it shows that post's images. Recenti is the same timeline limited to accounts
+ * the user follows. Search returns profiles. A profile URL or a plain username
+ * opens that profile directly. The optional Hashtag filter lists recent posts for a tag.
  *
  * A profile's chapters are its newest posts, capped. Pages are the post's
  * images in carousel order. Video and reel playback is not possible here, so
@@ -69,15 +70,16 @@ abstract class Instagram : KeiSource() {
     private var webTokens: WebTokens? = null
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder {
-        // One web API call at a time, at least 2.5s apart, and at most 8 a minute.
+        // One web API call at a time. About 0.6s apart, up to 30 a minute. The first call is not delayed.
+        // A real 429 still backs off inside openApi.
         rateLimit(
-            permits = 8,
+            permits = 30,
             period = 60.seconds,
-            interval = 2500.milliseconds,
+            interval = 600.milliseconds,
         ) { url -> isInstagramApi(url.host) }
-        readTimeout(30, TimeUnit.SECONDS)
-        connectTimeout(20, TimeUnit.SECONDS)
-        callTimeout(45, TimeUnit.SECONDS)
+        readTimeout(20, TimeUnit.SECONDS)
+        connectTimeout(15, TimeUnit.SECONDS)
+        callTimeout(25, TimeUnit.SECONDS)
         addInterceptor { chain ->
             chain.proceed(
                 chain.request().newBuilder()
@@ -111,28 +113,9 @@ abstract class Instagram : KeiSource() {
         HashtagFilter(),
     )
 
-    override suspend fun getPopularManga(page: Int): MangasPage {
-        val cursor = cursorFor("home", page)
-        val data = fetchTimeline(cursor)
-        val posts = timelineMedias(data).map { postToManga(it) }.distinctBy { it.url }
-        val next = nextMaxCursor(data)
-        saveCursor("home", page, next)
-        return MangasPage(posts, next != null)
-    }
+    override suspend fun getPopularManga(page: Int): MangasPage = loadFeedPage("home", page, followingOnly = false)
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val userId = loggedInUserId()
-        val cursor = cursorFor("following", page)
-        val query = mutableMapOf("count" to "24")
-        if (cursor != null) query["max_id"] = cursor.maxId
-        val data = getJson(apiUrl("api/v1/friendships/$userId/following/", query))
-        val accounts = data.getArrayOrNull("users").orEmpty().mapNotNull { element ->
-            element.asObject()?.let { runCatching { profileToManga(it) }.getOrNull() }
-        }.distinctBy { it.url.lowercase() }
-        val next = nextFollowingCursor(data)
-        saveCursor("following", page, next)
-        return MangasPage(accounts, next != null)
-    }
+    override suspend fun getLatestUpdates(page: Int): MangasPage = loadFeedPage("following", page, followingOnly = true)
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val typedTag = filters.filterIsInstance<HashtagFilter>().firstOrNull()?.state.orEmpty()
@@ -183,7 +166,7 @@ abstract class Instagram : KeiSource() {
     ): SMangaUpdate {
         val segments = manga.url.substringBefore('?').split('/').filter { it.isNotBlank() }
         if (isPostPath(segments)) {
-            val media = fetchMedia(shortcodeFrom(segments))
+            val media = fetchMedia(shortcodeFrom(segments), allowNetwork = false)
             val updated = if (fetchDetails) postToManga(media) else manga
             val loaded = if (fetchChapters) {
                 listOf(
@@ -218,7 +201,7 @@ abstract class Instagram : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val segments = chapter.url.substringBefore('?').split('/').filter { it.isNotBlank() }
-        val media = fetchMedia(shortcodeFrom(segments))
+        val media = fetchMedia(shortcodeFrom(segments), allowNetwork = true)
         val urls = pageUrls(media)
         if (urls.isEmpty()) {
             throw IOException(
@@ -302,17 +285,48 @@ abstract class Instagram : KeiSource() {
         }
     }
 
-    private suspend fun fetchTimeline(cursor: PageCursor?): JsonObject {
+    private suspend fun loadFeedPage(bucket: String, page: Int, followingOnly: Boolean): MangasPage {
+        var cursor = cursorFor(bucket, page)
+        val posts = linkedMapOf<String, SManga>()
+        var next: PageCursor? = null
+        var guard = 0
+        while (posts.size < FEED_PAGE_SIZE && guard < 3) {
+            guard++
+            val data = fetchTimeline(cursor, followingOnly)
+            timelineMedias(data).forEach { media ->
+                val manga = runCatching { postToManga(media) }.getOrNull() ?: return@forEach
+                if (posts.putIfAbsent(manga.url, manga) == null) remember(media)
+            }
+            next = nextMaxCursor(data)
+            if (next == null) break
+            cursor = next
+        }
+        saveCursor(bucket, page, next)
+        return MangasPage(posts.values.toList(), next != null)
+    }
+
+    private suspend fun fetchTimeline(cursor: PageCursor?, followingOnly: Boolean): JsonObject {
         val form = linkedMapOf(
             "device_status" to "{}",
             "feed_view_info" to "[]",
             "is_async_ads_double_request" to "0",
             "is_async_ads_rti" to "0",
-            "is_pull_to_refresh" to "0",
-            "reason" to if (cursor == null) "cold_start_fetch" else "pagination",
+            "is_pull_to_refresh" to if (cursor == null) "1" else "0",
+            "has_stories" to "0",
+            "is_following_feed" to if (followingOnly) "1" else "0",
+            "pagination_source" to if (followingOnly) "following" else "",
+            "reason" to when {
+                cursor != null -> "pagination"
+                followingOnly -> "following_feed"
+                else -> "cold_start_fetch"
+            },
         )
         if (cursor != null) form["max_id"] = cursor.maxId
-        return postForm(apiUrl("api/v1/feed/timeline/"), form)
+        return postForm(
+            apiUrl("api/v1/feed/timeline/"),
+            form,
+            referer = "$baseUrl/",
+        )
     }
 
     private suspend fun fetchTagSections(tag: String, cursor: PageCursor?): JsonObject {
@@ -342,10 +356,11 @@ abstract class Instagram : KeiSource() {
         return user
     }
 
-    private suspend fun fetchMedia(code: String): JsonObject {
+    private suspend fun fetchMedia(code: String, allowNetwork: Boolean = true): JsonObject {
         val clean = code.trim()
-        if (medias.size > 80) medias.clear()
         val cached = medias[clean]
+        // List and chapter rows already have title and thumbnail from the feed payload.
+        if (cached != null && (!allowNetwork || pageUrls(cached).isNotEmpty())) return cached
         val fresh = try {
             val data = getJson(apiUrl("api/v1/media/${idFromShortcode(clean)}/info/"))
             val items = data.getArrayOrNull("items").orEmpty().mapNotNull { it.asObject() }
@@ -521,7 +536,7 @@ abstract class Instagram : KeiSource() {
 
     private fun remember(media: JsonObject) {
         val code = media.getStringOrNull("code") ?: media.getStringOrNull("shortcode") ?: return
-        if (medias.size > 80) medias.clear()
+        if (medias.size > 200 && !medias.containsKey(code)) medias.clear()
         val existing = medias[code]
         if (existing == null || pageUrls(media).size > pageUrls(existing).size) {
             medias[code] = media
@@ -646,18 +661,22 @@ abstract class Instagram : KeiSource() {
         ?: user.longFlexible("following_count")
 
     private fun timelineMedias(data: JsonObject): List<JsonObject> {
-        val feedItems = data.getArrayOrNull("feed_items")
-        val raw = if (feedItems != null) {
-            feedItems.mapNotNull { element ->
-                element.asObject()?.getObjectOrNull("media_or_ad")
-            }
-        } else {
-            data.getArrayOrNull("items").orEmpty().mapNotNull { element ->
-                val obj = element.asObject() ?: return@mapNotNull null
-                obj.getObjectOrNull("media") ?: obj
-            }
+        val found = linkedMapOf<String, JsonObject>()
+        fun keep(media: JsonObject?) {
+            val post = media?.let { asPost(it) } ?: return
+            val code = post.getStringOrNull("code") ?: post.getStringOrNull("shortcode") ?: return
+            found.putIfAbsent(code, post)
         }
-        return raw.mapNotNull { asPost(it) }
+        fun walk(element: JsonElement?) {
+            val obj = element?.asObject() ?: return
+            keep(obj)
+            keep(obj.getObjectOrNull("media_or_ad"))
+            keep(obj.getObjectOrNull("media"))
+            keep(obj.getObjectOrNull("explore_story")?.getObjectOrNull("media"))
+        }
+        data.getArrayOrNull("feed_items").orEmpty().forEach(::walk)
+        data.getArrayOrNull("items").orEmpty().forEach(::walk)
+        return found.values.toList()
     }
 
     private fun sectionMedias(data: JsonObject): List<JsonObject> = data.getArrayOrNull("sections").orEmpty().flatMap { sectionElement ->
@@ -672,20 +691,29 @@ abstract class Instagram : KeiSource() {
 
     private fun asPost(media: JsonObject): JsonObject? {
         val ad = media["ad_id"]
-        if (ad != null && ad !is JsonNull) return null
+        if (ad is JsonPrimitive) {
+            val value = ad.content
+            if (value.isNotBlank() && value != "0" && value != "null") return null
+        }
         val code = media.getStringOrNull("code") ?: media.getStringOrNull("shortcode")
         if (code.isNullOrBlank()) return null
         return media
     }
 
     private fun nextMaxCursor(data: JsonObject): PageCursor? {
-        if (data.getBooleanOrNull("more_available") == false) return null
-        val maxId = data.getStringOrNull("next_max_id") ?: return null
-        return PageCursor(maxId, null)
-    }
-
-    private fun nextFollowingCursor(data: JsonObject): PageCursor? {
-        val maxId = data.getStringOrNull("next_max_id") ?: return null
+        val paging = data.getObjectOrNull("paging_info")
+        val pageInfo = data.getObjectOrNull("page_info") ?: paging?.getObjectOrNull("page_info")
+        val more = data.getBooleanOrNull("more_available")
+            ?: paging?.getBooleanOrNull("more_available")
+            ?: pageInfo?.getBooleanOrNull("has_next_page")
+        if (more == false) return null
+        val maxId = data.getStringOrNull("next_max_id")
+            ?: paging?.getStringOrNull("next_max_id")
+            ?: data.longFlexible("next_max_id")?.toString()
+            ?: paging?.longFlexible("next_max_id")?.toString()
+            ?: pageInfo?.getStringOrNull("end_cursor")
+            ?: data.getStringOrNull("end_cursor")
+        if (maxId.isNullOrBlank()) return null
         return PageCursor(maxId, null)
     }
 
@@ -838,17 +866,6 @@ abstract class Instagram : KeiSource() {
         if (readCookies()["sessionid"].isNullOrBlank()) throw IOException(LOGIN_MESSAGE)
     }
 
-    private fun loggedInUserId(): String {
-        requireSession()
-        val id = readCookies()["ds_user_id"]
-        if (id.isNullOrBlank() || id.any { !it.isDigit() }) {
-            throw IOException(
-                "Sessione incompleta: manca l'utente connesso. Apri la WebView, accedi di nuovo a Instagram e riprova.",
-            )
-        }
-        return id
-    }
-
     private fun readCookies(): Map<String, String> {
         val raw = listOf("https://www.instagram.com/", "https://instagram.com/").firstNotNullOfOrNull { url ->
             try {
@@ -951,6 +968,7 @@ abstract class Instagram : KeiSource() {
         const val POSTS_CONNECTION = "xdt_api__v1__feed__user_timeline_graphql_connection"
         const val USER_AGENT =
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
+        const val FEED_PAGE_SIZE = 12
         const val PROFILE_PAGE_SIZE = 12
         const val MAX_PROFILE_POSTS = 48
         const val LOGIN_MESSAGE =
