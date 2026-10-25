@@ -1,0 +1,19 @@
+{
+  "users": [
+    {"pk": 101, "pk_id": "101", "username": "alice", "full_name": "Alice Rossi", "is_private": false},
+    {"pk": 102, "username": "bob", "full_name": "Bob", "is_private": false},
+    {"pk_id": "103", "username": "cara", "full_name": "Cara", "is_private": true},
+    {"pk": 104, "username": "dario", "full_name": null, "is_private": false},
+    {"pk": 105, "username": "eva", "full_name": "Eva"},
+    {"pk": 106, "username": "fede", "full_name": "Fede"},
+    {"pk": 107, "username": "gina", "full_name": "Gina"},
+    {"pk": 108, "username": "hugo", "full_name": "Hugo"},
+    {"pk": null, "username": null, "full_name": "skip me"},
+    null
+  ],
+  "next_max_id": "50",
+  "big_list": true,
+  "page_size": 50,
+  "status": "ok",
+  "suggested_users": null
+}

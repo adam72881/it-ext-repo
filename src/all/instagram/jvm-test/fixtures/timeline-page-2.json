@@ -1,0 +1,19 @@
+{
+  "items": [
+    {"code": "Home4", "taken_at": 1700000700, "media_type": 1, "carousel_media": null, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home4.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 104, "username": "dario"}, "friendship_status": {"following": true}, "caption": {"text": "quattro"}},
+    {"code": "Home5", "taken_at": 1700000600, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home5.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 105, "username": "eva"}, "friendship_status": {"following": true}, "caption": {"text": "cinque"}},
+    {"code": "Home6", "taken_at": 1700000500, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home6.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 106, "username": "fede"}, "friendship_status": {"following": true}, "caption": {"text": "sei"}},
+    {"code": "Home7", "taken_at": 1700000400, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home7.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 107, "username": "gina"}, "friendship_status": {"following": true}, "caption": {"text": "sette"}},
+    {"code": "Home8", "taken_at": 1700000300, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home8.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 108, "username": "hugo"}, "friendship_status": {"following": true}, "caption": {"text": "otto"}},
+    {"code": "Home9", "taken_at": 1700000200, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home9.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 101, "username": "alice"}, "friendship_status": {"following": true}, "caption": {"text": "nove"}},
+    {"code": "Home10", "taken_at": 1700000100, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home10.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 102, "username": "bob"}, "friendship_status": {"following": true}, "caption": {"text": "dieci"}},
+    {"code": "Home11", "taken_at": 1699999000, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home11.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 103, "username": "cara"}, "friendship_status": {"following": true}, "caption": {"text": "undici"}},
+    {"code": "Home12", "taken_at": 1699998000, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home12.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 104, "username": "dario"}, "friendship_status": {"following": true}, "caption": {"text": "dodici"}},
+    {"code": "Home13", "taken_at": 1699997000, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home13.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 105, "username": "eva"}, "friendship_status": {"following": true}, "caption": {"text": "tredici"}},
+    {"code": "Home1", "taken_at": 1700001000, "media_type": 1, "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home1-dup.jpg", "width": 1080, "height": 1080}]}, "user": {"pk": 101, "username": "alice"}, "caption": {"text": "duplicato"}}
+  ],
+  "next_max_id": 4242,
+  "more_available": true,
+  "status": "ok",
+  "paging_info": {"more_available": true}
+}

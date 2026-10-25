@@ -1,0 +1,81 @@
+{
+  "feed_items": [
+    {
+      "media_or_ad": {
+        "code": "Home1",
+        "media_type": 1,
+        "taken_at": 1700001000,
+        "caption": {"text": "Home uno"},
+        "carousel_media": null,
+        "image_versions2": {"candidates": [
+          {"url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-15/home1.jpg", "width": 1080, "height": 1080}
+        ]},
+        "user": {"pk": 101, "username": "alice", "full_name": "Alice Rossi"},
+        "friendship_status": {"following": true}
+      }
+    },
+    {
+      "media_or_ad": {
+        "ad_id": "555",
+        "code": "HomeAd",
+        "media_type": 1,
+        "taken_at": 1700001100,
+        "image_versions2": {"candidates": [
+          {"url": "https://scontent.cdninstagram.com/v/t51.2885-15/ad.jpg", "width": 1080, "height": 1080}
+        ]},
+        "user": {"pk": 999, "username": "sponsor"}
+      }
+    },
+    {"suggested_users": {"suggestions": [{"user": {"username": "nobody"}}]}, "media_or_ad": null},
+    {
+      "explore_story": {
+        "media": {
+          "code": "HomeSuggested",
+          "media_type": 1,
+          "taken_at": 1700001200,
+          "caption": {"text": "Suggerito"},
+          "image_versions2": {"candidates": [
+            {"url": "https://scontent.cdninstagram.com/v/t51.2885-15/suggested.jpg", "width": 1080, "height": 1080}
+          ]},
+          "user": {"pk": 777, "username": "stranger"},
+          "friendship_status": {"following": false}
+        }
+      }
+    },
+    {
+      "media_or_ad": {
+        "code": "Home2",
+        "media_type": 1,
+        "taken_at": 1700000900,
+        "caption": null,
+        "carousel_media": null,
+        "image_versions2": null,
+        "display_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-15/home2.jpg",
+        "user": {"pk": 102, "username": "bob"},
+        "friendship_status": {"following": true}
+      }
+    },
+    {
+      "media_or_ad": {
+        "code": "Home3",
+        "media_type": 8,
+        "taken_at": 1700000800,
+        "caption": {"text": "Carosello home"},
+        "carousel_media": [
+          {"image_versions2": {"candidates": [
+            {"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home3-a.jpg", "width": 1080, "height": 1080}
+          ]}},
+          {"image_versions2": {"candidates": [
+            {"url": "https://scontent.cdninstagram.com/v/t51.2885-15/home3-b.jpg", "width": 1080, "height": 1080}
+          ]}}
+        ],
+        "user": {"pk": 103, "username": "cara"},
+        "friendship_status": {"following": true}
+      }
+    }
+  ],
+  "items": null,
+  "next_max_id": "cursor-2",
+  "more_available": true,
+  "status": "ok"
+}
