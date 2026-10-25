@@ -1,0 +1,33 @@
+{
+  "name": "instagram",
+  "badgeLabel": "IG",
+  "signingKey": "7a294ed5165763f074819bcd057723cf82f0d72935dcde26da8a7b3e45342e44",
+  "contact": {
+    "website": "https://github.com/adam72881/it-ext-repo"
+  },
+  "extensionList": {
+    "extensions": [
+      {
+        "name": "Instagram",
+        "packageName": "eu.kanade.tachiyomi.extension.all.instagram",
+        "resources": {
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/apk/tachiyomi-all.instagram-v1.6.1.apk",
+          "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/icon/eu.kanade.tachiyomi.extension.all.instagram.png",
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/jar/tachiyomi-all.instagram-v1.6.1.jar"
+        },
+        "extensionLib": "1.6",
+        "versionCode": "106001",
+        "versionName": "1.6.1",
+        "contentWarning": "CONTENT_WARNING_MIXED",
+        "sources": [
+          {
+            "id": "2435173718898269560",
+            "name": "Instagram",
+            "language": "all",
+            "homeUrl": "https://www.instagram.com"
+          }
+        ]
+      }
+    ]
+  }
+}
