@@ -27,12 +27,12 @@ Repository separato, solo questa estensione:
 https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/index.min.json
 ```
 
-Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.5. Serve a sfogliare il proprio account Instagram dentro il lettore.
+Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.6. Serve a sfogliare il proprio account Instagram dentro il lettore.
 
 1. Aggiungi il repository qui sopra, aggiorna, e installa **Instagram**.
 2. Apri la WebView della sorgente e accedi al tuo account. L'estensione riusa i cookie `sessionid`, `csrftoken` e `ds_user_id`. Se mancano, compare un errore che chiede di entrare dalla WebView.
 3. **Popolari** è la home: ogni post del feed è una voce, con la sua copertina, e lo scorrimento carica le pagine successive.
-4. **Seguiti** non è la scheda «Più Recenti» (quella etichetta la mette l'app). Apri Cerca, tocca i filtri, scegli Feed → Seguiti e avvia la ricerca anche senza testo. Carica i post recenti di un piccolo gruppo di account seguiti per volta.
+4. **Più Recenti** sono i post degli account che segui. Se la scheda non carica, il messaggio riporta lo stato HTTP di ogni passo.
 5. La ricerca trova profili. Puoi incollare un URL di profilo o di post, oppure scrivere un nome utente. Il filtro Hashtag, se compilato, mostra i post recenti di quel tag.
 6. In un profilo i capitoli sono i post, dal più nuovo, fino a 48. Le pagine sono le immagini del post, a risoluzione piena, nell'ordine del carosello. Video e reel mostrano solo la copertina.
 

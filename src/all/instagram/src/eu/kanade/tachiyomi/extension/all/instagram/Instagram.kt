@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.all.instagram
 
+import android.util.Log
 import android.webkit.CookieManager
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -16,7 +17,6 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.jsonInstance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -48,12 +48,11 @@ import kotlin.time.Duration.Companion.seconds
  * WebView's sessionid, csrftoken and ds_user_id. Nothing here asks for the
  * password, and API calls are serialized so Instagram is not hit in parallel.
  *
- * Popolari is the logged-in home timeline: each post is one entry, and opening
- * it shows that post's images. Tachimanga names the second tab itself, so
- * Seguiti is a search filter: recent posts from followed accounts, a few
- * profiles at a time. Search also returns profiles. A profile URL or a plain
- * username opens that profile directly. The optional Hashtag filter lists
- * recent posts for a tag.
+ * Popolari is the logged-in home timeline. Più Recenti (the app's Latest tab)
+ * is posts from followed accounts, taken from the same timeline when those
+ * items are not ads or suggestions. Search returns profiles. A profile URL or
+ * a plain username opens that profile directly. The optional Hashtag filter
+ * lists recent posts for a tag.
  *
  * A profile's chapters are its newest posts, capped. Pages are the post's
  * images in carousel order. Video and reel playback is not possible here, so
@@ -68,13 +67,6 @@ abstract class Instagram : KeiSource() {
 
     @Volatile
     private var followingCache: List<FollowedAccount>? = null
-
-    private val batchClient: OkHttpClient by lazy {
-        client.newBuilder()
-            .callTimeout(3, TimeUnit.SECONDS)
-            .readTimeout(3, TimeUnit.SECONDS)
-            .build()
-    }
 
     @Volatile
     private var wwwClaim: String = "0"
@@ -94,11 +86,12 @@ abstract class Instagram : KeiSource() {
         connectTimeout(15, TimeUnit.SECONDS)
         callTimeout(25, TimeUnit.SECONDS)
         addInterceptor { chain ->
-            chain.proceed(
-                chain.request().newBuilder()
-                    .header("User-Agent", USER_AGENT)
-                    .build(),
-            )
+            val request = chain.request()
+            if (request.header("User-Agent").isNullOrBlank()) {
+                chain.proceed(request.newBuilder().header("User-Agent", USER_AGENT).build())
+            } else {
+                chain.proceed(request)
+            }
         }
         addNetworkInterceptor(::stampInstagramRequest)
         return this
@@ -119,11 +112,9 @@ abstract class Instagram : KeiSource() {
         set("Sec-Fetch-Site", "same-origin")
     }
 
-    override val supportsLatest: Boolean = false
+    override val supportsLatest: Boolean = true
 
     override fun getFilterList(data: JsonElement?): FilterList = FilterList(
-        Filter.Header("Feed: scegli Seguiti e avvia la ricerca, anche senza testo."),
-        FeedFilter(),
         Filter.Header(
             "Hashtag opzionale, senza #. Se lo compili, la ricerca mostra i post recenti di quel tag al posto dei profili.",
         ),
@@ -134,11 +125,10 @@ abstract class Instagram : KeiSource() {
         loadFeedPage("home", page)
     }
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage = loadSeguiti(page)
+    override suspend fun getLatestUpdates(page: Int): MangasPage = loadLatest(page)
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val typedTag = filters.filterIsInstance<HashtagFilter>().firstOrNull()?.state.orEmpty()
-        val feed = filters.filterIsInstance<FeedFilter>().firstOrNull()?.state ?: 0
         val rawQuery = query.trim()
         val tag = when {
             typedTag.isNotBlank() -> typedTag
@@ -152,10 +142,7 @@ abstract class Instagram : KeiSource() {
         mangaFromLoose(rawQuery)?.let { manga ->
             return MangasPage(listOf(manga), false)
         }
-        val seguiti = feed == 1 && (rawQuery.isEmpty() || rawQuery.equals("seguiti", ignoreCase = true))
-        if (seguiti) return loadSeguiti(page)
-        if (rawQuery.isEmpty()) return loadFeedPage("home", page)
-        if (page > 1) return MangasPage(emptyList(), false)
+        if (rawQuery.isEmpty() || page > 1) return MangasPage(emptyList(), false)
 
         val bare = rawQuery.removePrefix("@").trim()
         val exact = if (!bare.contains(' ') && !bare.contains('/')) {
@@ -312,57 +299,138 @@ abstract class Instagram : KeiSource() {
         return MangasPage(mangas, collected.nextCursor != null && mangas.isNotEmpty())
     }
 
-    private suspend fun loadSeguiti(page: Int): MangasPage = guardPage(SEGUITI_FAIL) {
-        val accounts = try {
-            fetchFollowing()
-        } catch (error: InstagramHttpException) {
-            if (error.kind == Failure.LOGIN || error.kind == Failure.CHECKPOINT) throw error
-            emptyList()
-        }
-        if (accounts.isEmpty()) return@guardPage loadTimelineFollowed(page, accounts)
-        val start = seguitiStart(page)
-        val sink = FollowedSink()
-        val collected = withTimeoutOrNull(SEGUITI_BUDGET_MS) {
-            collectFollowed(accounts, start, FOLLOW_BATCH, sink) { account ->
-                try {
-                    fetchUserFeed(account.id)
-                } catch (error: InstagramHttpException) {
-                    if (error.kind == Failure.LOGIN || error.kind == Failure.CHECKPOINT) throw error
-                    emptyList()
-                }
+    private suspend fun loadLatest(page: Int): MangasPage {
+        val notes = mutableListOf<String>()
+        try {
+            val saved = latestCursor(page)
+            if (saved != null && saved.startsWith(ACCOUNT_CURSOR)) {
+                return loadOneFollowedAccount(page, saved.removePrefix(ACCOUNT_CURSOR).toIntOrNull() ?: 0, notes)
             }
-        } ?: followedPage(sink, start, accounts.size)
-        if (collected.posts.isEmpty() && collected.nextIndex == start) {
-            val fallback = runCatching { loadTimelineFollowed(page, accounts) }.getOrNull()
-            if (fallback != null && fallback.mangas.isNotEmpty()) return@guardPage fallback
-            throw IOException(if (page <= 1) SEGUITI_EMPTY else SEGUITI_FAIL)
+            var calls = 0
+            var cursor = saved
+            val posts = linkedMapOf<String, JsonObject>()
+            var next: String? = null
+            while (calls < 2 && posts.size < FEED_PAGE_SIZE) {
+                calls++
+                val data = try {
+                    fetchTimeline(cursor?.let { PageCursor(it, null) })
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    note(notes, "timeline", error)
+                    break
+                }
+                val found = latestTimelinePosts(data)
+                note(notes, "timeline", 200, "${found.size} post dopo filtro ads/suggested")
+                found.forEach { media ->
+                    val code = codeOf(media) ?: return@forEach
+                    posts.putIfAbsent(code, media)
+                }
+                next = nextCursorId(data)
+                if (posts.isNotEmpty() || next == null) break
+                cursor = next
+            }
+            if (posts.isNotEmpty()) {
+                saveCursor("latest", page, next?.let { PageCursor(it, null) })
+                val ready = postsToPage(posts.values, next != null)
+                if (ready.mangas.isEmpty()) throw IOException(latestFailure(notes))
+                return ready
+            }
+            if (calls < LATEST_MAX_CALLS) {
+                val accountPage = loadFollowedFallback(page, notes, calls)
+                if (accountPage != null) return accountPage
+            }
+            throw IOException(latestFailure(notes))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            if (error.message.orEmpty().startsWith("Più Recenti non ha caricato")) throw error
+            note(notes, "eccezione", null, "${error.javaClass.simpleName}: ${error.message.orEmpty()}")
+            throw IOException(latestFailure(notes))
+        } catch (error: Exception) {
+            note(notes, "eccezione", null, "${error.javaClass.simpleName}: ${error.message.orEmpty()}")
+            throw IOException(latestFailure(notes))
         }
-        val mangas = collected.posts.mapNotNull { media ->
-            val manga = runCatching { postToManga(media) }.getOrNull() ?: return@mapNotNull null
-            remember(media)
-            manga
-        }
-        if (mangas.isEmpty() && page <= 1) throw IOException(SEGUITI_EMPTY)
-        val hasNext = collected.nextIndex < accounts.size
-        if (hasNext) saveCursor("seguiti", page, PageCursor(collected.nextIndex.toString(), null))
-        MangasPage(mangas, hasNext)
     }
 
-    private suspend fun loadTimelineFollowed(page: Int, accounts: List<FollowedAccount>): MangasPage {
-        val collected = collectTimeline(FEED_PAGE_SIZE, 2, cursorFor("seguiti-home", page)?.maxId) { cursor ->
-            fetchTimeline(cursor?.let { PageCursor(it, null) })
+    private suspend fun loadFollowedFallback(page: Int, notes: MutableList<String>, callsIn: Int): MangasPage? {
+        var calls = callsIn
+        val userId = resolveUserId(notes, calls)
+        if (userId == null) return null
+        if (resolveUserIdUsedCall) calls++
+        var accounts = followingCache?.takeIf { it.isNotEmpty() }
+        if (accounts == null && calls < LATEST_MAX_CALLS) {
+            calls++
+            accounts = requestFollowing(notes, userId, "www.instagram.com", "following-www")
         }
-        val followed = collected.posts.filter { isFollowedPost(it, accounts) }
-        if (followed.isEmpty()) {
-            throw IOException(if (accounts.isEmpty()) SEGUITI_NONE else SEGUITI_EMPTY)
+        if (accounts.isNullOrEmpty() && calls < LATEST_MAX_CALLS) {
+            calls++
+            accounts = requestFollowing(notes, userId, "i.instagram.com", "following-i")
         }
-        val mangas = followed.mapNotNull { media ->
-            val manga = runCatching { postToManga(media) }.getOrNull() ?: return@mapNotNull null
-            remember(media)
-            manga
+        val list = accounts.orEmpty()
+        if (list.isEmpty() || calls >= LATEST_MAX_CALLS) return null
+        return loadOneFollowedAccount(page, 0, notes)
+    }
+
+    private var resolveUserIdUsedCall: Boolean = false
+
+    private suspend fun resolveUserId(notes: MutableList<String>, calls: Int): String? {
+        resolveUserIdUsedCall = false
+        val fromCookies = userIdFromCookies(readCookies())
+        if (fromCookies != null) {
+            val source = if (readCookies()["ds_user_id"]?.all { it.isDigit() } == true) "ds_user_id" else "sessionid"
+            note(notes, "utente", 200, source)
+            return fromCookies
         }
-        saveCursor("seguiti-home", page, collected.nextCursor?.let { PageCursor(it, null) })
-        return MangasPage(mangas, collected.nextCursor != null && mangas.isNotEmpty())
+        if (calls >= LATEST_MAX_CALLS) {
+            note(notes, "utente", null, "manca ds_user_id e sessionid non ha un id")
+            return null
+        }
+        resolveUserIdUsedCall = true
+        return try {
+            val data = getJson(apiUrl("api/v1/accounts/current_user/", mapOf("edit" to "true")))
+            val id = currentUserId(data)
+            note(notes, "current_user", 200, if (id == null) "id assente" else "id ok")
+            id
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            note(notes, "current_user", error)
+            null
+        }
+    }
+
+    private suspend fun loadOneFollowedAccount(page: Int, index: Int, notes: MutableList<String>): MangasPage {
+        val accounts = followingCache ?: run {
+            val userId = resolveUserId(notes, 0) ?: throw IOException(latestFailure(notes))
+            try {
+                fetchFollowing(userId, "www.instagram.com").also { followingCache = it }
+            } catch (error: Exception) {
+                note(notes, "following-www", error)
+                try {
+                    fetchFollowing(userId, "i.instagram.com").also { followingCache = it }
+                } catch (fallback: Exception) {
+                    note(notes, "following-i", fallback)
+                    throw IOException(latestFailure(notes))
+                }
+            }
+        }
+        if (index >= accounts.size) {
+            note(notes, "feed-utente", null, "nessun altro account")
+            throw IOException(latestFailure(notes))
+        }
+        val account = accounts[index]
+        val posts = try {
+            fetchUserFeed(account.id)
+        } catch (error: Exception) {
+            note(notes, "feed-utente", error)
+            throw IOException(latestFailure(notes))
+        }
+        note(notes, "feed-utente", 200, "@${account.username} ${posts.size} post")
+        if (posts.isEmpty()) throw IOException(latestFailure(notes))
+        val next = if (index + 1 < accounts.size) "$ACCOUNT_CURSOR${index + 1}" else null
+        saveCursor("latest", page, next?.let { PageCursor(it, null) })
+        return postsToPage(posts, next != null)
     }
 
     private suspend fun fetchTimeline(cursor: PageCursor?): JsonObject {
@@ -383,30 +451,65 @@ abstract class Instagram : KeiSource() {
         )
     }
 
-    private suspend fun fetchFollowing(): List<FollowedAccount> {
-        followingCache?.let { return it }
-        val userId = readCookies()["ds_user_id"]
-        if (userId.isNullOrBlank() || userId.any { !it.isDigit() }) {
-            throw IOException(
-                "Sessione incompleta: manca l'utente connesso. Apri la WebView, accedi di nuovo a Instagram e riprova.",
-            )
+    private suspend fun requestFollowing(
+        notes: MutableList<String>,
+        userId: String,
+        host: String,
+        step: String,
+    ): List<FollowedAccount>? = try {
+        val accounts = fetchFollowing(userId, host)
+        note(notes, step, 200, "${accounts.size} account")
+        if (accounts.isNotEmpty()) followingCache = accounts
+        accounts
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        note(notes, step, error)
+        null
+    }
+
+    private suspend fun fetchFollowing(userId: String, host: String): List<FollowedAccount> {
+        val extra = if (host == "i.instagram.com") {
+            mapOf("User-Agent" to MOBILE_USER_AGENT, "X-IG-App-ID" to MOBILE_APP_ID)
+        } else {
+            emptyMap()
         }
         val data = getJson(
-            apiUrl("api/v1/friendships/$userId/following/", mapOf("count" to "50")),
+            apiUrl("api/v1/friendships/$userId/following/", mapOf("count" to "12"), host),
             referer = "$baseUrl/",
+            extraHeaders = extra,
         )
-        val accounts = followingAccounts(data)
-        if (accounts.isNotEmpty()) followingCache = accounts
-        return accounts
+        return followingAccounts(data)
     }
 
     private suspend fun fetchUserFeed(userId: String): List<JsonObject> {
         val data = getJson(
             apiUrl("api/v1/feed/user/$userId/", mapOf("count" to "6")),
             referer = "$baseUrl/",
-            http = batchClient,
         )
         return userFeedMedias(data)
+    }
+
+    private fun postsToPage(posts: Collection<JsonObject>, hasNext: Boolean): MangasPage {
+        val mangas = posts.mapNotNull { media ->
+            val manga = runCatching { postToManga(media) }.getOrNull() ?: return@mapNotNull null
+            remember(media)
+            manga
+        }
+        return MangasPage(mangas, hasNext && mangas.isNotEmpty())
+    }
+
+    private fun latestCursor(page: Int): String? = cursorFor("latest", page)?.maxId
+
+    private fun note(notes: MutableList<String>, step: String, error: Exception) {
+        val http = error as? InstagramHttpException
+        note(notes, step, http?.status, "${error.javaClass.simpleName}: ${http?.snippet ?: error.message.orEmpty()}")
+    }
+
+    private fun note(notes: MutableList<String>, step: String, status: Int?, detail: String) {
+        val line = diagnosticLine(step, status, detail)
+        notes += line
+        Log.w(LOG_TAG, line)
     }
 
     private suspend fun <T> guardPage(fallback: String, block: suspend () -> T): T {
@@ -778,7 +881,8 @@ abstract class Instagram : KeiSource() {
         url: HttpUrl,
         referer: String? = null,
         http: OkHttpClient = client,
-    ): JsonObject = openApi(url, null, referer, emptyMap(), http)
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): JsonObject = openApi(url, null, referer, extraHeaders, http)
 
     private suspend fun postForm(
         url: HttpUrl,
@@ -825,29 +929,32 @@ abstract class Instagram : KeiSource() {
     private fun parseResponse(response: Response): JsonObject {
         val text = response.body.string()
         val path = response.request.url.encodedPath
-        if ("/accounts/login" in path) throw InstagramHttpException(Failure.LOGIN, LOGIN_MESSAGE)
-        if ("/challenge/" in path || "/auth_platform/" in path) {
-            throw InstagramHttpException(Failure.CHECKPOINT, CHECKPOINT_MESSAGE)
-        }
-        if (response.code == 401) throw InstagramHttpException(Failure.LOGIN, LOGIN_MESSAGE)
+        fun raise(kind: Failure, message: String): Nothing = throw InstagramHttpException(kind, message, response.code, clipDetail(text.ifBlank { message }))
+        if ("/accounts/login" in path) raise(Failure.LOGIN, LOGIN_MESSAGE)
+        if ("/challenge/" in path || "/auth_platform/" in path) raise(Failure.CHECKPOINT, CHECKPOINT_MESSAGE)
+        if (response.code == 401) raise(Failure.LOGIN, LOGIN_MESSAGE)
         if (response.code == 429 || text.contains("Please wait a few minutes", ignoreCase = true)) {
-            throw InstagramHttpException(Failure.RATE, RATE_MESSAGE)
+            raise(Failure.RATE, RATE_MESSAGE)
         }
-        if (text.isBlank()) throw InstagramHttpException(Failure.OTHER, EMPTY_MESSAGE)
-        if (text.trimStart().startsWith("<")) throw InstagramHttpException(Failure.OTHER, htmlMessage(text))
+        if (text.isBlank()) raise(Failure.OTHER, EMPTY_MESSAGE)
+        if (text.trimStart().startsWith("<")) raise(Failure.OTHER, htmlMessage(text))
 
         val data = try {
             jsonInstance.parseToJsonElement(text).asObject()
                 ?: throw IllegalArgumentException("not an object")
         } catch (_: Exception) {
-            throw InstagramHttpException(
+            raise(
                 Failure.OTHER,
                 "Risposta di Instagram non riconosciuta. Se è comparso un controllo, completalo nella WebView e riprova.",
             )
         }
-        classifyFailure(data, response.code)?.let { throw it }
+        classifyFailure(data, response.code)?.let { error ->
+            error.status = response.code
+            error.snippet = clipDetail(text)
+            throw error
+        }
         if (data.getStringOrNull("status") == "fail" || !response.isSuccessful) {
-            throw InstagramHttpException(Failure.OTHER, otherMessage(data, response.code))
+            raise(Failure.OTHER, otherMessage(data, response.code))
         }
         return data
     }
@@ -937,20 +1044,14 @@ abstract class Instagram : KeiSource() {
         }.toMap()
     }
 
-    private fun apiUrl(path: String, query: Map<String, String> = emptyMap()): HttpUrl = baseUrl.toHttpUrl().newBuilder().apply {
+    private fun apiUrl(
+        path: String,
+        query: Map<String, String> = emptyMap(),
+        host: String = "www.instagram.com",
+    ): HttpUrl = "https://$host".toHttpUrl().newBuilder().apply {
         path.trim('/').split('/').filter { it.isNotEmpty() }.forEach { addPathSegment(it) }
         query.forEach { (key, value) -> addQueryParameter(key, value) }
     }.build()
-
-    private fun seguitiStart(page: Int): Int {
-        if (page <= 1) {
-            cursors.keys.filter { it.startsWith("seguiti#") }.toList().forEach(cursors::remove)
-            return 0
-        }
-        val cursor = cursors["seguiti#$page"]
-            ?: throw IOException("Scorri le pagine in ordine, partendo dalla prima.")
-        return cursor.maxId.toIntOrNull() ?: 0
-    }
 
     private fun cursorFor(bucket: String, page: Int): PageCursor? {
         val safePage = if (page < 1) 1 else page
@@ -1011,8 +1112,6 @@ abstract class Instagram : KeiSource() {
 
     private fun formatCount(value: Long): String = "%,d".format(Locale.ITALY, value)
 
-    private class FeedFilter : Filter.Select<String>("Feed", arrayOf("Home", "Seguiti"))
-
     private class HashtagFilter : Filter.Text("Hashtag")
 
     private data class PageCursor(val maxId: String, val page: String?)
@@ -1023,10 +1122,20 @@ abstract class Instagram : KeiSource() {
 
     private enum class Failure { LOGIN, CHECKPOINT, RATE, OTHER }
 
-    private class InstagramHttpException(val kind: Failure, message: String) : IOException(message)
+    private class InstagramHttpException(
+        val kind: Failure,
+        message: String,
+        var status: Int? = null,
+        var snippet: String? = null,
+    ) : IOException(message)
 
     private companion object {
         const val IG_APP_ID = "936619743392459"
+        const val MOBILE_APP_ID = "567067343352427"
+        const val LOG_TAG = "Instagram"
+        const val ACCOUNT_CURSOR = "followed-account:"
+        const val MOBILE_USER_AGENT =
+            "Instagram 361.0.0.46.88 Android (31/12; 420dpi; 1080x2400; Google/google; Pixel 6; oriole; oriole; en_US; 674674275)"
         const val ASBD_ID = "359341"
         const val POSTS_DOC_ID = "29104886249145907"
         const val POSTS_QUERY_NAME = "PolarisProfilePostsTabContentQuery_connection"
@@ -1108,7 +1217,12 @@ abstract class Instagram : KeiSource() {
                 "}"
         }
 
-        fun isInstagramApi(host: String): Boolean = host.equals("www.instagram.com", ignoreCase = true) || host.equals("instagram.com", ignoreCase = true)
+        fun isInstagramApi(host: String): Boolean {
+            val normalized = host.lowercase()
+            return normalized == "www.instagram.com" ||
+                normalized == "instagram.com" ||
+                normalized == "i.instagram.com"
+        }
 
         fun isInstagramSite(host: String): Boolean {
             val normalized = host.lowercase()

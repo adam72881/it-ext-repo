@@ -13,6 +13,8 @@ internal const val IMAGE_REFERER = "https://www.instagram.com/"
 
 internal const val FOLLOW_BATCH = 4
 
+internal const val LATEST_MAX_CALLS = 3
+
 internal const val SEGUITI_BUDGET_MS = 9_000L
 
 internal const val SEGUITI_NONE =
@@ -102,6 +104,97 @@ internal fun timelineMedias(data: JsonObject): List<JsonObject> {
     runCatching { data.getArrayOrNull("feed_items").orEmpty().forEach(::walk) }
     runCatching { data.getArrayOrNull("items").orEmpty().forEach(::walk) }
     return found.values.toList()
+}
+
+internal fun friendshipFollowing(media: JsonObject): Boolean? {
+    val direct = media.getObjectOrNull("friendship_status")?.getBooleanOrNull("following")
+    if (direct != null) return direct
+    val user = media.getObjectOrNull("user") ?: media.getObjectOrNull("owner")
+    return user?.getObjectOrNull("friendship_status")?.getBooleanOrNull("following")
+}
+
+internal fun isSuggestionMarker(media: JsonObject): Boolean {
+    if (media.getObjectOrNull("suggested_users") != null) return true
+    if (media.getObjectOrNull("explore_story") != null) return true
+    if (media.getObjectOrNull("explore") != null) return true
+    val reason = listOf("reason", "inventory_source", "feed_item_type", "title")
+        .mapNotNull { media.getStringOrNull(it) }
+        .joinToString(" ")
+        .lowercase()
+    return "explore" in reason || "suggest" in reason
+}
+
+/**
+ * Latest keeps a post when the author is followed, or when the item is not an ad
+ * and not a suggestion. Ads never pass [organicPost].
+ */
+internal fun isLatestPost(media: JsonObject): Boolean {
+    if (organicPost(media) == null) return false
+    if (friendshipFollowing(media) == true) return true
+    return !isSuggestionMarker(media)
+}
+
+internal fun latestTimelinePosts(data: JsonObject): List<JsonObject> {
+    val found = linkedMapOf<String, JsonObject>()
+    fun keep(wrapper: JsonObject, media: JsonObject?) {
+        val post = media?.let { runCatching { organicPost(it) }.getOrNull() } ?: return
+        val code = codeOf(post) ?: return
+        if (friendshipFollowing(post) == true) {
+            found.putIfAbsent(code, post)
+            return
+        }
+        if (isSuggestionMarker(wrapper) || isSuggestionMarker(post)) return
+        found.putIfAbsent(code, post)
+    }
+    fun walk(element: JsonElement?) {
+        val obj = runCatching { element?.asObject() }.getOrNull() ?: return
+        if (obj.getObjectOrNull("suggested_users") != null && obj.getObjectOrNull("media_or_ad") == null) return
+        keep(obj, obj.getObjectOrNull("media_or_ad"))
+        keep(obj, obj.getObjectOrNull("media"))
+        val exploreMedia = obj.getObjectOrNull("explore_story")?.getObjectOrNull("media")
+        if (exploreMedia != null && friendshipFollowing(exploreMedia) == true) keep(obj, exploreMedia)
+        if (obj.getObjectOrNull("media_or_ad") == null && obj.getObjectOrNull("media") == null) keep(obj, obj)
+    }
+    runCatching { data.getArrayOrNull("feed_items").orEmpty().forEach(::walk) }
+    runCatching { data.getArrayOrNull("items").orEmpty().forEach(::walk) }
+    return found.values.toList()
+}
+
+internal fun userIdFromSession(session: String?): String? {
+    if (session.isNullOrBlank()) return null
+    val decoded = runCatching { java.net.URLDecoder.decode(session, Charsets.UTF_8.name()) }.getOrDefault(session)
+    val head = decoded.substringBefore(':').trim()
+    return head.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
+}
+
+internal fun userIdFromCookies(cookies: Map<String, String>): String? {
+    cookies["ds_user_id"]?.takeIf { it.isNotBlank() && it.all(Char::isDigit) }?.let { return it }
+    return userIdFromSession(cookies["sessionid"])
+}
+
+internal fun currentUserId(data: JsonObject): String? {
+    val user = data.getObjectOrNull("user") ?: data
+    return user.getStringOrNull("pk_id")
+        ?: user.longFlexible("pk")?.toString()
+        ?: user.getStringOrNull("pk")
+        ?: user.getStringOrNull("id")
+        ?: user.longFlexible("id")?.toString()
+}
+
+internal fun clipDetail(text: String, limit: Int = 120): String {
+    val clean = text.replace(Regex("\\s+"), " ").trim()
+        .replace(Regex("sessionid=[^\\s;&]+", RegexOption.IGNORE_CASE), "sessionid=***")
+    return if (clean.length <= limit) clean else clean.take(limit)
+}
+
+internal fun diagnosticLine(step: String, status: Int?, detail: String): String {
+    val code = status?.toString() ?: "-"
+    return "$step: HTTP $code ${clipDetail(detail)}"
+}
+
+internal fun latestFailure(lines: List<String>): String {
+    val body = lines.ifEmpty { listOf(diagnosticLine("timeline", null, "nessun dettaglio")) }
+    return "Più Recenti non ha caricato post.\n" + body.joinToString("\n")
 }
 
 internal fun userFeedMedias(data: JsonObject): List<JsonObject> {

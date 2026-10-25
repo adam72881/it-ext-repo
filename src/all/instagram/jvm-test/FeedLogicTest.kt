@@ -7,7 +7,15 @@ import eu.kanade.tachiyomi.extension.all.instagram.authorOf
 import eu.kanade.tachiyomi.extension.all.instagram.captionOf
 import eu.kanade.tachiyomi.extension.all.instagram.cdnImageHeaders
 import eu.kanade.tachiyomi.extension.all.instagram.codeOf
+import eu.kanade.tachiyomi.extension.all.instagram.LATEST_MAX_CALLS
+import eu.kanade.tachiyomi.extension.all.instagram.clipDetail
 import eu.kanade.tachiyomi.extension.all.instagram.collectFollowed
+import eu.kanade.tachiyomi.extension.all.instagram.currentUserId
+import eu.kanade.tachiyomi.extension.all.instagram.diagnosticLine
+import eu.kanade.tachiyomi.extension.all.instagram.latestFailure
+import eu.kanade.tachiyomi.extension.all.instagram.latestTimelinePosts
+import eu.kanade.tachiyomi.extension.all.instagram.userIdFromCookies
+import eu.kanade.tachiyomi.extension.all.instagram.userIdFromSession
 import eu.kanade.tachiyomi.extension.all.instagram.collectTimeline
 import eu.kanade.tachiyomi.extension.all.instagram.followingAccounts
 import eu.kanade.tachiyomi.extension.all.instagram.isFollowedPost
@@ -187,6 +195,42 @@ fun main() {
     check("fifty sequential accounts do not", slow < 8, "slow=$slow")
     val oldWalk = 50 * 2_500L + 49 * 1_500L
     check("old per-account walk exceeds 10s", oldWalk > 10_000, "old=$oldWalk")
+
+    val latest = latestTimelinePosts(load("timeline-page-1.json")).map { codeOf(it) }
+    check(
+        "latest drops ads and explore",
+        latest == listOf("Home1", "Home2", "Home3"),
+        latest.toString(),
+    )
+    val plain = json.parseToJsonElement(
+        """{"items":[{"code":"Plain","friendship_status":{"following":false},"user":{"pk":102,"username":"bob"},
+          "image_versions2":{"candidates":[{"url":"https://scontent.cdninstagram.com/v/t51.2885-15/plain.jpg","width":1080,"height":1080}]}}]}""",
+    ) as JsonObject
+    check("unmarked post stays in latest", latestTimelinePosts(plain).map { codeOf(it) } == listOf("Plain"))
+    val explore = json.parseToJsonElement(
+        """{"feed_items":[{"reason":"explore","media_or_ad":{"code":"Ex","user":{"username":"x","friendship_status":{"following":false}},
+          "image_versions2":{"candidates":[{"url":"https://scontent.cdninstagram.com/v/t51.2885-15/ex.jpg","width":1080,"height":1080}]}}}]}""",
+    ) as JsonObject
+    check("explore reason dropped", latestTimelinePosts(explore).isEmpty())
+    val followedFlag = json.parseToJsonElement(
+        """{"feed_items":[{"reason":"explore","media_or_ad":{"code":"Keep","user":{"username":"alice","friendship_status":{"following":true}},
+          "image_versions2":{"candidates":[{"url":"https://scontent.cdninstagram.com/v/t51.2885-15/keep.jpg","width":1080,"height":1080}]}}}]}""",
+    ) as JsonObject
+    check("followed flag kept inside explore", latestTimelinePosts(followedFlag).map { codeOf(it) } == listOf("Keep"))
+
+    check("id from ds_user_id", userIdFromCookies(mapOf("ds_user_id" to "42", "sessionid" to "7%3Aabc")) == "42")
+    check("id from encoded session", userIdFromSession("4242%3Atoken%3A1") == "4242")
+    check("id from plain session", userIdFromSession("99:token") == "99")
+    check("session without id", userIdFromSession("not-a-number:token") == null)
+    val me = json.parseToJsonElement("""{"user":{"pk":77,"username":"me"}}""") as JsonObject
+    check("current user pk", currentUserId(me) == "77")
+
+    val longLine = diagnosticLine("following-www", 400, "x".repeat(300))
+    check("diagnostic keeps status", longLine.startsWith("following-www: HTTP 400 "))
+    check("diagnostic clips body", clipDetail("x".repeat(300)).length == 120)
+    val failure = latestFailure(listOf(longLine))
+    check("empty latest names the step", failure.startsWith("Più Recenti non ha caricato post.") && "HTTP 400" in failure)
+    check("first latest page is at most 3 calls", LATEST_MAX_CALLS == 3)
 
     if (failed > 0) error("$failed checks failed")
     println("all passed")
