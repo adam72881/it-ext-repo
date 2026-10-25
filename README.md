@@ -27,7 +27,7 @@ Repository separato, solo questa estensione:
 https://raw.githubusercontent.com/adam72881/it-ext-repo/repo-instagram/index.min.json
 ```
 
-Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.1. Serve a sfogliare il proprio account Instagram dentro il lettore.
+Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.all.instagram`, versione 1.6.2. Serve a sfogliare il proprio account Instagram dentro il lettore.
 
 1. Aggiungi il repository qui sopra, aggiorna, e installa **Instagram**.
 2. Apri la WebView della sorgente e accedi al tuo account. L'estensione riusa i cookie `sessionid`, `csrftoken` e `ds_user_id`. Se mancano, compare un errore che chiede di entrare dalla WebView.
@@ -35,7 +35,7 @@ Estensione sperimentale, lingua `all`, pacchetto `eu.kanade.tachiyomi.extension.
 4. La ricerca trova profili. Puoi incollare un URL di profilo o di post, oppure scrivere un nome utente. Il filtro Hashtag, se compilato, mostra i post recenti di quel tag.
 5. In un profilo i capitoli sono i post, dal più nuovo, fino a 48. Le pagine sono le immagini del post, nell'ordine del carosello. Video e reel mostrano solo la copertina.
 
-Le chiamate al sito sono una alla volta, con almeno 0,9 secondi di distanza e non più di 24 al minuto. Storie, messaggi e la riproduzione video non ci sono. Gli URL delle immagini scadono: se una pagina non si apre, rientra nel capitolo.
+Le chiamate al sito sono una alla volta, con almeno 2,5 secondi di distanza e non più di 8 al minuto. Una risposta 429 viene ritentata. Storie, messaggi e la riproduzione video non ci sono. Gli URL delle immagini scadono: se una pagina non si apre, rientra nel capitolo.
 
 Il sorgente sta in `src/all/instagram` e si compila con il plugin `kei.plugins.extension` di [extensions-source](https://github.com/keiyoushi/extensions-source), lib `1.6`. È firmato con una chiave sua, indicata nel `repo.json` del branch `repo-instagram`.
 

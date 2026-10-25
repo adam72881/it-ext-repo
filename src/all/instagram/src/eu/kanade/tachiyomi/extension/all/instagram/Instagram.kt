@@ -20,6 +20,7 @@ import keiyoushi.utils.getObjectOrNull
 import keiyoushi.utils.getStringOrNull
 import keiyoushi.utils.jsonInstance
 import keiyoushi.utils.stringOrNull
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -73,12 +74,15 @@ abstract class Instagram : KeiSource() {
     @Volatile
     private var wwwClaim: String = "0"
 
+    @Volatile
+    private var webTokens: WebTokens? = null
+
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder {
-        // One web API call at a time, at least 900ms apart, and at most 24 a minute.
+        // One web API call at a time, at least 2.5s apart, and at most 8 a minute.
         rateLimit(
-            permits = 24,
+            permits = 8,
             period = 60.seconds,
-            interval = 900.milliseconds,
+            interval = 2500.milliseconds,
         ) { url -> isInstagramApi(url.host) }
         readTimeout(30, TimeUnit.SECONDS)
         connectTimeout(20, TimeUnit.SECONDS)
@@ -98,8 +102,10 @@ abstract class Instagram : KeiSource() {
         set("User-Agent", USER_AGENT)
         set("Accept", "*/*")
         set("Accept-Language", "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7")
+        set("Origin", "https://www.instagram.com")
+        set("Referer", "https://www.instagram.com/")
         set("X-IG-App-ID", IG_APP_ID)
-        set("X-ASBD-ID", "129477")
+        set("X-ASBD-ID", ASBD_ID)
         set("X-IG-WWW-Claim", "0")
         set("X-Requested-With", "XMLHttpRequest")
         set("Sec-Fetch-Dest", "empty")
@@ -199,11 +205,17 @@ abstract class Instagram : KeiSource() {
             return SMangaUpdate(updated, loaded)
         }
 
-        val user = fetchProfile(usernameFrom(segments))
-        val updated = if (fetchDetails) profileToManga(user) else manga
+        val username = usernameFrom(segments)
+        val user = try {
+            fetchProfile(username)
+        } catch (error: InstagramHttpException) {
+            if (error.kind == Failure.LOGIN || error.kind == Failure.CHECKPOINT || !fetchChapters) throw error
+            null
+        }
+        val updated = if (fetchDetails && user != null) profileToManga(user) else manga
         if (!fetchChapters) return SMangaUpdate(updated, chapters)
 
-        val loaded = loadProfileChapters(user)
+        val loaded = loadProfileChapters(user, username)
         if (fetchDetails && loaded.truncated) {
             updated.description = listOfNotNull(
                 updated.description?.takeIf { it.isNotBlank() },
@@ -233,6 +245,7 @@ abstract class Instagram : KeiSource() {
             .removeAll("X-ASBD-ID")
             .removeAll("X-IG-WWW-Claim")
             .removeAll("X-Requested-With")
+            .removeAll("Origin")
             .set("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
             .build()
         return Request.Builder()
@@ -328,7 +341,10 @@ abstract class Instagram : KeiSource() {
         val clean = cleanUsername(username)
         profiles[clean.lowercase()]?.let { return it }
         if (profiles.size > 100) profiles.clear()
-        val data = getJson(apiUrl("api/v1/users/web_profile_info/", mapOf("username" to clean)))
+        val data = getJson(
+            apiUrl("api/v1/users/web_profile_info/", mapOf("username" to clean)),
+            referer = "$baseUrl/$clean/",
+        )
         val user = data.getObjectOrNull("data")?.getObjectOrNull("user")
             ?: throw IOException("Profilo \"$clean\" non trovato.")
         profiles[clean.lowercase()] = user
@@ -348,49 +364,152 @@ abstract class Instagram : KeiSource() {
         return media
     }
 
-    private suspend fun loadProfileChapters(user: JsonObject): ChapterLoad {
-        if (user.getBooleanOrNull("is_private") == true && user.getBooleanOrNull("followed_by_viewer") == false) {
+    private suspend fun loadProfileChapters(user: JsonObject?, username: String): ChapterLoad {
+        if (user?.getBooleanOrNull("is_private") == true && user.getBooleanOrNull("followed_by_viewer") == false) {
             throw IOException(
                 "Questo profilo è privato. Seguilo dall'account con cui hai fatto l'accesso, poi riprova.",
             )
         }
-        val userId = user.getStringOrNull("id")
-            ?: user.getStringOrNull("pk")
-            ?: user.longFlexible("pk")?.toString()
-            ?: throw IOException("Impossibile leggere l'id del profilo.")
 
         val chapters = mutableListOf<SChapter>()
+        // The profile response already carries the newest posts. Using them avoids a second call.
+        if (user != null) timelineEdgeChapters(user).forEach { addChapter(chapters, it) }
+
+        val userId = user?.let(::userIdOf)
+        var feedError: InstagramHttpException? = null
+        if (userId != null && chapters.size < MAX_PROFILE_POSTS) {
+            try {
+                appendFeed(userId, username, chapters)
+            } catch (error: InstagramHttpException) {
+                if (error.kind == Failure.LOGIN || error.kind == Failure.CHECKPOINT) throw error
+                feedError = error
+            }
+        }
+
+        if (chapters.isEmpty()) {
+            if (feedError != null && feedError.kind == Failure.RATE) throw feedError
+            try {
+                appendGraphqlPosts(username, chapters)
+            } catch (error: InstagramHttpException) {
+                if (chapters.isEmpty()) throw feedError ?: error
+            }
+        }
+        if (chapters.isEmpty()) {
+            throw feedError ?: IOException("Questo profilo non ha post visibili.")
+        }
+
+        val total = chapters.size
+        val truncated = total >= MAX_PROFILE_POSTS
+        chapters.forEachIndexed { index, chapter ->
+            chapter.chapter_number = (total - index).toFloat()
+        }
+        return ChapterLoad(chapters, truncated)
+    }
+
+    private suspend fun appendFeed(userId: String, username: String, chapters: MutableList<SChapter>) {
         var cursor: String? = null
-        var truncated = false
         var guard = 0
-        while (chapters.size < MAX_PROFILE_POSTS && guard < 6) {
+        while (chapters.size < MAX_PROFILE_POSTS && guard < 4) {
             guard++
             val query = mutableMapOf("count" to PROFILE_PAGE_SIZE.toString())
             if (cursor != null) query["max_id"] = cursor
-            val data = getJson(apiUrl("api/v1/feed/user/$userId/", query))
+            val data = getJson(
+                apiUrl("api/v1/feed/user/$userId/", query),
+                referer = "$baseUrl/$username/",
+            )
             val items = data.getArrayOrNull("items").orEmpty().mapNotNull { it.asObject() }
             if (items.isEmpty()) break
-            for (item in items) {
-                if (chapters.size >= MAX_PROFILE_POSTS) {
-                    truncated = true
-                    break
-                }
-                mediaToChapter(item)?.let { chapters += it }
-            }
+            items.forEach { addChapter(chapters, mediaToChapter(it)) }
             val next = data.getStringOrNull("next_max_id")
             val more = data.getBooleanOrNull("more_available") == true && !next.isNullOrBlank()
-            if (chapters.size >= MAX_PROFILE_POSTS && more) truncated = true
-            if (!more) break
+            if (!more || chapters.size >= MAX_PROFILE_POSTS) break
             cursor = next
         }
-
-        val unique = chapters.distinctBy { it.url }
-        val total = unique.size
-        unique.forEachIndexed { index, chapter ->
-            chapter.chapter_number = (total - index).toFloat()
-        }
-        return ChapterLoad(unique, truncated)
     }
+
+    private suspend fun appendGraphqlPosts(username: String, chapters: MutableList<SChapter>) {
+        val tokens = webApiTokens(username)
+        var after: String? = null
+        var guard = 0
+        while (chapters.size < MAX_PROFILE_POSTS && guard < 4) {
+            guard++
+            val form = linkedMapOf(
+                "av" to tokens.actorId,
+                "fb_dtsg" to tokens.fbDtsg,
+                "lsd" to tokens.lsd,
+                "fb_api_caller_class" to "RelayModern",
+                "fb_api_req_friendly_name" to POSTS_QUERY_NAME,
+                "server_timestamps" to "true",
+                "doc_id" to POSTS_DOC_ID,
+                "variables" to postsVariables(username, after),
+            )
+            val data = postForm(
+                apiUrl("api/graphql"),
+                form,
+                referer = "$baseUrl/$username/",
+                extraHeaders = mapOf(
+                    "X-FB-LSD" to tokens.lsd,
+                    "X-FB-Friendly-Name" to POSTS_QUERY_NAME,
+                ),
+            )
+            val connection = data.getObjectOrNull("data")?.getObjectOrNull(POSTS_CONNECTION)
+                ?: data.getObjectOrNull("data")
+                    ?.getObjectOrNull("user")
+                    ?.getObjectOrNull("edge_owner_to_timeline_media")
+                ?: break
+            val edges = connection.getArrayOrNull("edges").orEmpty()
+            if (edges.isEmpty()) break
+            edges.forEach { edge ->
+                val node = edge.asObject()?.getObjectOrNull("node") ?: return@forEach
+                addChapter(chapters, mediaToChapter(node))
+            }
+            val pageInfo = connection.getObjectOrNull("page_info")
+            val next = pageInfo?.getStringOrNull("end_cursor")
+            val more = pageInfo?.getBooleanOrNull("has_next_page") == true && !next.isNullOrBlank()
+            if (!more || chapters.size >= MAX_PROFILE_POSTS) break
+            after = next
+        }
+    }
+
+    private suspend fun webApiTokens(username: String): WebTokens {
+        val session = readCookies()["sessionid"].orEmpty()
+        webTokens?.takeIf { it.session == session }?.let { return it }
+        val response = client.get(
+            "$baseUrl/$username/".toHttpUrl(),
+            requestHeaders("$baseUrl/$username/", mapOf("Accept" to "text/html,application/xhtml+xml")),
+            CacheControl.FORCE_NETWORK,
+            ensureSuccess = false,
+        )
+        val html = response.use { loaded ->
+            if (loaded.code == 429) throw InstagramHttpException(Failure.RATE, RATE_MESSAGE)
+            loaded.body.string()
+        }
+        if ("DTSGInitialData" !in html && ("/accounts/login" in html || "login" in html.lowercase())) {
+            throw InstagramHttpException(Failure.LOGIN, LOGIN_MESSAGE)
+        }
+        val dtsg = DTSG_TOKEN.find(html)?.groupValues?.get(1)
+        val lsd = LSD_TOKEN.find(html)?.groupValues?.get(1) ?: LSD_INPUT.find(html)?.groupValues?.get(1)
+        val actor = EIMU_TOKEN.find(html)?.groupValues?.get(1) ?: readCookies()["ds_user_id"]
+        if (dtsg.isNullOrBlank() || lsd.isNullOrBlank() || actor.isNullOrBlank()) {
+            throw InstagramHttpException(Failure.OTHER, SESSION_PAGE_MESSAGE)
+        }
+        return WebTokens(session, dtsg, lsd, actor).also { webTokens = it }
+    }
+
+    private fun timelineEdgeChapters(user: JsonObject): List<SChapter> {
+        val edges = user.getObjectOrNull("edge_owner_to_timeline_media")?.getArrayOrNull("edges").orEmpty()
+        return edges.mapNotNull { edge -> edge.asObject()?.getObjectOrNull("node")?.let { mediaToChapter(it) } }
+    }
+
+    private fun addChapter(chapters: MutableList<SChapter>, chapter: SChapter?) {
+        if (chapter == null || chapters.size >= MAX_PROFILE_POSTS) return
+        if (chapters.any { it.url == chapter.url }) return
+        chapters += chapter
+    }
+
+    private fun userIdOf(user: JsonObject): String? = user.getStringOrNull("id")
+        ?: user.getStringOrNull("pk")
+        ?: user.longFlexible("pk")?.toString()
 
     private fun profileToManga(user: JsonObject): SManga {
         val username = user.getStringOrNull("username")
@@ -471,7 +590,8 @@ abstract class Instagram : KeiSource() {
 
     private fun chapterName(media: JsonObject): String {
         val carousel = media.getArrayOrNull("carousel_media")
-        val carouselCount = carousel?.size ?: 0
+        val sidecar = media.getObjectOrNull("edge_sidecar_to_children")?.getArrayOrNull("edges")
+        val carouselCount = carousel?.size ?: sidecar?.size ?: 0
         val childVideo = carousel?.any { element ->
             element.asObject()?.let { isVideo(it) } == true
         } == true
@@ -492,6 +612,13 @@ abstract class Instagram : KeiSource() {
         val carousel = media.getArrayOrNull("carousel_media")
         if (carousel != null && carousel.isNotEmpty()) {
             val urls = carousel.mapNotNull { element -> element.asObject()?.let { bestImage(it) } }
+            if (urls.isNotEmpty()) return urls
+        }
+        val sidecar = media.getObjectOrNull("edge_sidecar_to_children")?.getArrayOrNull("edges")
+        if (sidecar != null && sidecar.isNotEmpty()) {
+            val urls = sidecar.mapNotNull { edge ->
+                edge.asObject()?.getObjectOrNull("node")?.let { bestImage(it) }
+            }
             if (urls.isNotEmpty()) return urls
         }
         return listOfNotNull(bestImage(media))
@@ -525,6 +652,13 @@ abstract class Instagram : KeiSource() {
         ?: user.longFlexible("following_count")
 
     private fun captionOf(media: JsonObject): String {
+        val fromEdge = media.getObjectOrNull("edge_media_to_caption")
+            ?.getArrayOrNull("edges")
+            ?.firstOrNull()
+            ?.asObject()
+            ?.getObjectOrNull("node")
+            ?.getStringOrNull("text")
+        if (!fromEdge.isNullOrBlank()) return fromEdge
         val caption = media["caption"] ?: return ""
         if (caption is JsonNull) return ""
         return caption.asObject()?.getStringOrNull("text") ?: caption.stringOrNull.orEmpty()
@@ -590,59 +724,122 @@ abstract class Instagram : KeiSource() {
         return PageCursor(maxId, page)
     }
 
-    private suspend fun getJson(url: HttpUrl): JsonObject = openApi(url, null)
+    private suspend fun getJson(url: HttpUrl, referer: String? = null): JsonObject = openApi(url, null, referer, emptyMap())
 
-    private suspend fun postForm(url: HttpUrl, form: Map<String, String>): JsonObject = openApi(url, form)
+    private suspend fun postForm(
+        url: HttpUrl,
+        form: Map<String, String>,
+        referer: String? = null,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): JsonObject = openApi(url, form, referer, extraHeaders)
 
-    private suspend fun openApi(url: HttpUrl, form: Map<String, String>?): JsonObject {
+    private suspend fun openApi(
+        url: HttpUrl,
+        form: Map<String, String>?,
+        referer: String?,
+        extraHeaders: Map<String, String>,
+    ): JsonObject {
         requireSession()
-        val response = if (form == null) {
-            client.get(url, headers, CacheControl.FORCE_NETWORK, ensureSuccess = false)
-        } else {
-            val body = FormBody.Builder().apply {
-                form.forEach { (key, value) -> add(key, value) }
-            }.build()
-            client.post(url, headers, body, ensureSuccess = false)
+        var attempt = 0
+        while (true) {
+            val callHeaders = requestHeaders(referer, extraHeaders)
+            val response = if (form == null) {
+                client.get(url, callHeaders, CacheControl.FORCE_NETWORK, ensureSuccess = false)
+            } else {
+                val body = FormBody.Builder().apply {
+                    form.forEach { (key, value) -> add(key, value) }
+                }.build()
+                client.post(url, callHeaders, body, ensureSuccess = false)
+            }
+            try {
+                return response.use { parseResponse(it) }
+            } catch (error: InstagramHttpException) {
+                val retry = error.kind == Failure.RATE && attempt < 2
+                if (!retry) throw error
+                attempt++
+                delay(if (attempt == 1) 4_000 else 12_000)
+            }
         }
-        return response.use { parseResponse(it) }
     }
+
+    private fun requestHeaders(referer: String?, extraHeaders: Map<String, String>): Headers = headers.newBuilder().apply {
+        if (!referer.isNullOrBlank()) set("Referer", referer)
+        extraHeaders.forEach { (name, value) -> set(name, value) }
+    }.build()
 
     private fun parseResponse(response: Response): JsonObject {
         val text = response.body.string()
         val path = response.request.url.encodedPath
-        if ("/accounts/login" in path) throw IOException(LOGIN_MESSAGE)
-        if ("/challenge/" in path) throw IOException(CHECKPOINT_MESSAGE)
-        if (response.code == 429) throw IOException(RATE_MESSAGE)
-        if (text.isBlank() || text.trimStart().startsWith("<")) throw IOException(LOGIN_MESSAGE)
+        if ("/accounts/login" in path) throw InstagramHttpException(Failure.LOGIN, LOGIN_MESSAGE)
+        if ("/challenge/" in path || "/auth_platform/" in path) {
+            throw InstagramHttpException(Failure.CHECKPOINT, CHECKPOINT_MESSAGE)
+        }
+        if (response.code == 401) throw InstagramHttpException(Failure.LOGIN, LOGIN_MESSAGE)
+        if (response.code == 429 || text.contains("Please wait a few minutes", ignoreCase = true)) {
+            throw InstagramHttpException(Failure.RATE, RATE_MESSAGE)
+        }
+        if (text.isBlank()) throw InstagramHttpException(Failure.OTHER, EMPTY_MESSAGE)
+        if (text.trimStart().startsWith("<")) throw InstagramHttpException(Failure.OTHER, htmlMessage(text))
 
         val data = try {
             jsonInstance.parseToJsonElement(text).jsonObject
         } catch (_: Exception) {
-            throw IOException(
+            throw InstagramHttpException(
+                Failure.OTHER,
                 "Risposta di Instagram non riconosciuta. Se è comparso un controllo, completalo nella WebView e riprova.",
             )
         }
-        val message = data.getStringOrNull("message").orEmpty()
-        if (data.getBooleanOrNull("require_login") == true || message == "login_required") {
-            throw IOException(LOGIN_MESSAGE)
-        }
-        if (message == "checkpoint_required") throw IOException(CHECKPOINT_MESSAGE)
-        if (message == "feedback_required" || message.contains("Please wait a few minutes", ignoreCase = true)) {
-            throw IOException(RATE_MESSAGE)
-        }
+        classifyFailure(data, response.code)?.let { throw it }
         if (data.getStringOrNull("status") == "fail" || !response.isSuccessful) {
-            throw IOException(failMessage(message.ifBlank { "HTTP ${response.code}" }))
+            throw InstagramHttpException(Failure.OTHER, otherMessage(data, response.code))
         }
         return data
     }
 
-    private fun failMessage(message: String): String {
-        val short = message.replace(Regex("\\s+"), " ").take(180)
+    private fun classifyFailure(data: JsonObject, code: Int): InstagramHttpException? {
+        val message = data.getStringOrNull("message").orEmpty()
+        val feedback = data.getStringOrNull("feedback_message").orEmpty()
+        val checkpointUrl = data.getStringOrNull("checkpoint_url").orEmpty()
+        val combined = "$message $feedback ${data.getStringOrNull("feedback_title").orEmpty()}"
+        if (combined.contains("Please wait a few minutes", ignoreCase = true) || code == 429) {
+            return InstagramHttpException(Failure.RATE, RATE_MESSAGE)
+        }
+        if (data.getBooleanOrNull("require_login") == true || message.equals("login_required", ignoreCase = true)) {
+            return InstagramHttpException(Failure.LOGIN, LOGIN_MESSAGE)
+        }
+        if (
+            message == "checkpoint_required" ||
+            message == "challenge_required" ||
+            checkpointUrl.isNotBlank()
+        ) {
+            return InstagramHttpException(Failure.CHECKPOINT, CHECKPOINT_MESSAGE)
+        }
+        if (message == "feedback_required") {
+            val detail = feedback.replace(Regex("\\s+"), " ").trim().take(160)
+            val text = if (detail.isBlank()) FEEDBACK_MESSAGE else "$FEEDBACK_MESSAGE\n$detail"
+            return InstagramHttpException(Failure.OTHER, text)
+        }
+        return null
+    }
+
+    private fun htmlMessage(text: String): String {
+        val lower = text.lowercase()
+        return when {
+            "checkpoint" in lower || "challenge" in lower -> CHECKPOINT_MESSAGE
+            "/accounts/login" in lower || "login" in lower -> LOGIN_MESSAGE
+            else -> HTML_MESSAGE
+        }
+    }
+
+    private fun otherMessage(data: JsonObject, code: Int): String {
+        val message = data.getStringOrNull("message").orEmpty().ifBlank { "HTTP $code" }
+        val short = message.replace(Regex("\\s+"), " ").trim().take(180)
         return when {
             short.contains("login", ignoreCase = true) -> LOGIN_MESSAGE
-            short.contains("wait", ignoreCase = true) || short.contains("feedback", ignoreCase = true) -> RATE_MESSAGE
+            short.contains("checkpoint", ignoreCase = true) || short.contains("challenge", ignoreCase = true) -> CHECKPOINT_MESSAGE
             short.contains("not found", ignoreCase = true) -> "Profilo o post non trovato."
-            short.isBlank() -> "Instagram ha rifiutato la richiesta."
+            short.contains("schema", ignoreCase = true) || short.contains("asset://", ignoreCase = true) -> SCHEMA_MESSAGE
+            short.isBlank() -> "Instagram ha rifiutato la richiesta (HTTP $code)."
             else -> "Instagram: $short"
         }
     }
@@ -773,8 +970,18 @@ abstract class Instagram : KeiSource() {
 
     private data class ChapterLoad(val chapters: List<SChapter>, val truncated: Boolean)
 
+    private data class WebTokens(val session: String, val fbDtsg: String, val lsd: String, val actorId: String)
+
+    private enum class Failure { LOGIN, CHECKPOINT, RATE, OTHER }
+
+    private class InstagramHttpException(val kind: Failure, message: String) : IOException(message)
+
     private companion object {
         const val IG_APP_ID = "936619743392459"
+        const val ASBD_ID = "359341"
+        const val POSTS_DOC_ID = "29104886249145907"
+        const val POSTS_QUERY_NAME = "PolarisProfilePostsTabContentQuery_connection"
+        const val POSTS_CONNECTION = "xdt_api__v1__feed__user_timeline_graphql_connection"
         const val USER_AGENT =
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
         const val PROFILE_PAGE_SIZE = 12
@@ -785,6 +992,16 @@ abstract class Instagram : KeiSource() {
             "Instagram chiede una verifica. Aprilo nella WebView della sorgente, completa il controllo, poi riprova."
         const val RATE_MESSAGE =
             "Instagram sta limitando le richieste. Aspetta qualche minuto e riprova."
+        const val FEEDBACK_MESSAGE =
+            "Instagram ha rifiutato l'elenco dei post. Non è un limite di velocità: apri la WebView della sorgente, ricarica il profilo, poi riprova."
+        const val HTML_MESSAGE =
+            "Instagram ha risposto con una pagina web invece dei dati. Apri la WebView della sorgente, accedi di nuovo, poi riprova."
+        const val EMPTY_MESSAGE =
+            "Instagram ha risposto vuoto. Apri la WebView della sorgente e riprova."
+        const val SCHEMA_MESSAGE =
+            "Instagram ha rifiutato il formato della richiesta. Apri la WebView della sorgente, ricarica la pagina, poi riprova."
+        const val SESSION_PAGE_MESSAGE =
+            "Instagram non ha fornito i dati della sessione web. Apri la WebView della sorgente, ricarica il profilo, poi riprova."
         const val SHORTCODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
         val USERNAME = Regex("^[A-Za-z0-9._]{1,30}$")
@@ -811,6 +1028,35 @@ abstract class Instagram : KeiSource() {
 
         val chapterDate: DateTimeFormatter =
             DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN).withZone(ZoneId.systemDefault())
+
+        val DTSG_TOKEN = Regex("\"DTSGInitialData\",\\[\\],\\{[^{}]*\"token\":\"([^\"]+)\"")
+        val LSD_TOKEN = Regex("\"LSD\",\\[\\],\\{[^{}]*\"token\":\"([^\"]+)\"")
+        val LSD_INPUT = Regex("name=\"lsd\" value=\"([^\"]+)\"")
+        val EIMU_TOKEN = Regex("\"IG_USER_EIMU\":\"?(\\d+)")
+
+        fun postsVariables(username: String, after: String?): String {
+            val afterJson = if (after == null) "null" else "\"${after.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+            return "{" +
+                "\"after\":$afterJson," +
+                "\"before\":null," +
+                "\"data\":{" +
+                "\"count\":$PROFILE_PAGE_SIZE," +
+                "\"include_reel_media_seen_timestamp\":true," +
+                "\"include_relationship_info\":true," +
+                "\"latest_besties_reel_media\":true," +
+                "\"latest_reel_media\":true" +
+                "}," +
+                "\"first\":$PROFILE_PAGE_SIZE," +
+                "\"include_multi_captions\":true," +
+                "\"last\":null," +
+                "\"username\":\"$username\"," +
+                "\"__relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider\":true," +
+                "\"__relay_internal__pv__PolarisShortDramaEnabledrelayprovider\":true," +
+                "\"__relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider\":false," +
+                "\"__relay_internal__pv__PolarisSEOIsCrawlerrelayprovider\":false," +
+                "\"__relay_internal__pv__PolarisThreadsStyleCommentsEnabledrelayprovider\":false" +
+                "}"
+        }
 
         fun isInstagramApi(host: String): Boolean = host.equals("www.instagram.com", ignoreCase = true) || host.equals("instagram.com", ignoreCase = true)
 
