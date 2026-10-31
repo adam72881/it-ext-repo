@@ -41,8 +41,7 @@ import kotlin.time.Duration.Companion.seconds
 @Source
 abstract class HentaiArchive : KeiSource() {
 
-    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder =
-        rateLimit(permits = 2, period = 1.seconds)
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 2, period = 1.seconds)
 
     override suspend fun getPopularManga(page: Int): MangasPage = randomListing(page, Query())
 
