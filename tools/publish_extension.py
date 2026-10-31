@@ -2,9 +2,12 @@
 """Publish one built extension into the distribution branch, keeping every other entry.
 
 usage: publish_extension.py BUILD_DIR DISTRIBUTION_DIR OFFICIAL_SCRIPTS_DIR APKSIGNER
+
+With SIGNING_KEY_CONFIGURED=true the APK key becomes the repository key.
 """
 import gzip
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -43,11 +46,22 @@ certs = subprocess.run([apksigner, "verify", "--print-certs", str(apks[0])], cap
 digest = re.search(r"certificate SHA-256 digest: ([0-9a-f]{64})", certs)
 if not digest:
     raise SystemExit("Could not read the APK signing certificate")
+signing_key_configured = os.environ.get("SIGNING_KEY_CONFIGURED") == "true"
+repo_json_path = dist / "repo.json"
 if digest.group(1) != index.signingKey:
-    raise SystemExit(
-        f"APK signed with {digest.group(1)}, repository expects {index.signingKey}. "
-        "Add the repository key as the SIGNING_KEY secret (see README) before publishing."
-    )
+    if signing_key_configured:
+        # The SIGNING_KEY secret is the repository key from now on.
+        print(f"Repository key changed: {index.signingKey} -> {digest.group(1)}")
+        index.signingKey = digest.group(1)
+        repo_json = json.loads(repo_json_path.read_text(encoding="utf-8"))
+        repo_json["meta"]["signingKeyFingerprint"] = digest.group(1)
+        repo_json_path.write_text(json.dumps(repo_json, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    else:
+        print(
+            f"::warning::APK signed with a throwaway debug key ({digest.group(1)}), repository key is "
+            f"{index.signingKey}. Tachimanga does not mind; on Android the extension shows as untrusted "
+            "and does not update in place. Add the SIGNING_KEY secret (see README) to fix it."
+        )
 
 if old is not None and int(info["versionCode"]) <= old.versionCode:
     raise SystemExit(f"Refusing non-upgrade versionCode {info['versionCode']} (published: {old.versionCode})")

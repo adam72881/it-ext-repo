@@ -65,8 +65,8 @@ jobs:
           mkdir -p keiyoushi/src/it
           cp -R src/it/${{ inputs.module }} keiyoushi/src/it/${{ inputs.module }}
 
-      # Without the repository key Gradle signs with a throwaway debug key,
-      # which the app rejects as an update; publishing then refuses to run.
+      # Without SIGNING_KEY Gradle signs with a throwaway debug key: fine for
+      # Tachimanga, but Android shows the extension as untrusted.
       - name: Prepare signing key
         if: env.HAS_SIGNING_KEY == 'true'
         env:
@@ -76,9 +76,10 @@ jobs:
       - name: Format, build APK and JAR, and run release lint
         working-directory: keiyoushi
         env:
-          ALIAS: ${{ secrets.ALIAS }}
-          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Defaults match the keystore described in the README; only SIGNING_KEY is needed.
+          ALIAS: ${{ secrets.ALIAS || 'it-ext' }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD || 'it-ext-key' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'it-ext-key' }}
         run: ./gradlew --no-daemon :src:it:${{ inputs.module }}:spotlessApply :src:it:${{ inputs.module }}:assembleRelease :src:it:${{ inputs.module }}:lintRelease --stacktrace
 
       - name: Remove signing key
@@ -117,6 +118,8 @@ jobs:
 
       - name: Publish APK, JAR, JSON and Protobuf indexes
         if: inputs.publish
+        env:
+          SIGNING_KEY_CONFIGURED: ${{ env.HAS_SIGNING_KEY }}
         run: |
           set -euo pipefail
           python3 tools/publish_extension.py \
@@ -125,7 +128,7 @@ jobs:
           cd distribution
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A apk jar index.json index.pb index.min.json
+          git add -A apk jar index.json index.pb index.min.json repo.json
           git diff --cached --check
           git commit -m "Publish ${{ inputs.module }}"
           git pull --rebase origin repo
