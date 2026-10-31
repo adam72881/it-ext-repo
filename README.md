@@ -16,6 +16,7 @@ L'app, se segue il formato attuale, legge anche `repo.json` e `index.pb` nella s
 |---|---|---|
 | Hentai Zone (hentaizone.me) | `src/it/hentaizone` | `hentai-zone-dev` |
 | Hentai ITA (hentai-ita.net) | `src/it/hentaiita` | `hentai-ita-dev` |
+| Hentai Archive (hentai-archive.com) | `src/it/hentaiarchive` | `hentai-archive-dev` |
 
 Un push su uno di quei rami compila l'estensione con il sistema di build di Keiyoushi e pubblica APK, JAR e indici sul ramo `repo`. Sugli altri rami la workflow compila e fa il lint senza pubblicare. Prima della build, `tools/check_hentai_*_site.py` controlla che il sito abbia ancora la struttura che l'estensione usa.
 

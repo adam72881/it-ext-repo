@@ -1,5 +1,12 @@
 # Novità
 
+## Hentai Archive 1.6.1
+
+- Prima versione per hentai-archive.com.
+- Popolari (più commentati), Recenti, Titolo e Casuale, con sezioni (Doujinshi, Fumetti porno, 3D, Volumi) e 73 categorie, una alla volta.
+- Ricerca nei manga, senza video.
+- Esclusi solo i contenuti che indicano esplicitamente bambini o preadolescenti.
+
 ## Hentai Zone 1.6.6
 
 - Aprendo un titolo che fa parte di una serie compaiono tutti i suoi capitoli; quelli nuovi arrivano con l'aggiornamento della libreria.

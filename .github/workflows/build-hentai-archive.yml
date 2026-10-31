@@ -1,0 +1,39 @@
+name: Build and publish Hentai Archive
+
+on:
+  push:
+    branches:
+      - hentai-archive-dev
+      - claude/tachiyomi-extensions-repo-7ssu8l
+    paths:
+      - "src/it/hentaiarchive/**"
+      - "tools/check_hentai_archive_site.py"
+      - "tools/publish_extension.py"
+      - ".github/workflows/build-hentai-archive.yml"
+      - ".github/workflows/build-extension.yml"
+      - ".github/workflows/releases.yml"
+      - "tools/sync_releases.py"
+      - "CHANGELOG.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hentai-archive-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  hentai-archive:
+    uses: ./.github/workflows/build-extension.yml
+    with:
+      module: hentaiarchive
+      preflight: check_hentai_archive_site.py
+      publish: ${{ github.ref == 'refs/heads/hentai-archive-dev' }}
+    secrets: inherit
+
+  releases:
+    needs: hentai-archive
+    if: github.ref == 'refs/heads/hentai-archive-dev'
+    uses: ./.github/workflows/releases.yml
+    secrets: inherit

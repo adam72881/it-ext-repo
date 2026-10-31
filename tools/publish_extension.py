@@ -79,6 +79,13 @@ for stale in list(apk_dir.glob(prefix + "*.apk")) + list(jar_dir.glob(prefix + "
 shutil.copy2(apks[0], apk_dir / apks[0].name)
 shutil.copy2(jars[0], jar_dir / jars[0].name)
 
+# A new extension brings its icon from src/it/<module>/icon.png.
+icon_target = dist / "icon" / f"{pkg}.png"
+icon_source = Path("src/it") / pkg.rsplit(".", 1)[-1] / "icon.png"
+if not icon_target.exists() and icon_source.exists():
+    icon_target.parent.mkdir(exist_ok=True)
+    shutil.copy2(icon_source, icon_target)
+
 ext = index_pb2.Extension(
     name=info["name"],
     packageName=pkg,
