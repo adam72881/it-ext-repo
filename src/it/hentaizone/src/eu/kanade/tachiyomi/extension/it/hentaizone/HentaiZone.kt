@@ -185,7 +185,11 @@ abstract class HentaiZone : KeiSource() {
     }
 
     private fun parseListing(doc: Document, page: Int): MangasPage {
-        val cards = doc.select("article, .post, .manga-item, .item")
+        // WordPress archives vary by theme: prefer real post containers and keep
+        // generic fallbacks last so navigation/widgets do not become manga entries.
+        val cards = doc.select(
+            "article, .type-post, .hentry, .post, .blog-post, .manga-item, .item",
+        )
         val mangas = cards.mapNotNull { card ->
             mangaFromElement(doc, card)?.takeUnless { isBlocked(card.text()) }
         }.distinctBy { it.url }
@@ -204,12 +208,16 @@ abstract class HentaiZone : KeiSource() {
     }
 
     private fun mangaFromElement(doc: Document, element: Element): SManga? {
-        val link = element.selectFirst(
-            "h2 a[href], h3 a[href], .entry-title a[href], a[href*='/']",
-        ) ?: return null
+        val titleLink = element.selectFirst(
+            "h1 a[href], h2 a[href], h3 a[href], .entry-title a[href], " +
+                ".post-title a[href], a[rel=bookmark][href]",
+        )
+        val link = titleLink?.takeIf { isContentUrl(it.absUrl("href")) }
+            ?: element.select("a[href]").firstOrNull {
+                it.text().isNotBlank() && isContentUrl(it.absUrl("href"))
+            }
+            ?: return null
         val href = link.absUrl("href").ifBlank { return null }
-        if (!href.startsWith(baseUrl) || href.contains("/video", ignoreCase = true)) return null
-
         val title = link.text().ifBlank {
             element.selectFirst("h1, h2, h3")?.text().orEmpty()
         }
@@ -252,6 +260,19 @@ abstract class HentaiZone : KeiSource() {
                     .find(title)?.groupValues?.get(1)?.replace(',', '.')?.toFloatOrNull() ?: -1f
             }
         }.distinctBy { it.url }
+    }
+
+    private fun isContentUrl(url: String): Boolean {
+        if (url.isBlank()) return false
+        val parsed = runCatching { url.toHttpUrl() }.getOrNull() ?: return false
+        if (parsed.host != baseUrl.toHttpUrl().host) return false
+        val path = parsed.encodedPath.lowercase()
+        if (path.startsWith("/category/") || path.startsWith("/tag/") ||
+            path.startsWith("/author/") || path.startsWith("/wp-") ||
+            path.contains("/video") || path == "/hentai-manga/" ||
+            path.matches(Regex(""".*/page/\\d+/?"""))
+        ) return false
+        return !path.substringAfterLast('/').matches(Regex(""".+\\.(jpg|jpeg|png|gif|webp|avif|pdf)$"""))
     }
 
     private fun isLoginPage(doc: Document): Boolean =
