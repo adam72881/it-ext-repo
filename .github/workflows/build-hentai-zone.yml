@@ -26,11 +26,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Check live catalog and free reader markup
         run: python3 tools/check_hentai_zone_site.py
-      - name: Validate protobuf schema and publisher syntax
-        run: |
-          python3 -m pip install --disable-pip-version-check grpcio-tools
-          python3 -m grpc_tools.protoc -I tools --python_out=tools tools/index.proto
-          PYTHONPATH=tools python3 -m py_compile tools/publish_hentai_zone.py tools/index_pb2.py
+      - name: Validate JSON publisher syntax
+        run: python3 -m py_compile tools/publish_hentai_zone.py
 
   build:
     needs: preflight
@@ -76,8 +73,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p = Path("keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json")
-          d = json.loads(p.read_text())
+          d = json.loads(Path("keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json").read_text())
           assert d["packageName"] == "eu.kanade.tachiyomi.extension.it.hentaizone"
           assert d["sources"][0]["lang"] == "it"
           assert d["sources"][0]["baseUrl"] == "https://hentaizone.me"
@@ -101,20 +97,14 @@ jobs:
           path: distribution
           persist-credentials: true
 
-      - name: Install protobuf compiler
-        run: |
-          python3 -m pip install --disable-pip-version-check grpcio-tools
-          python3 -m grpc_tools.protoc -I tools --python_out=tools tools/index.proto
-
-      - name: Publish APK, JAR, and valid repository indexes
+      - name: Publish APK, JAR, and the repository's JSON index
         run: |
           set -euo pipefail
-          PYTHONPATH=tools python3 tools/publish_hentai_zone.py \
-            keiyoushi/src/it/hentaizone/build distribution
+          python3 tools/publish_hentai_zone.py keiyoushi/src/it/hentaizone/build distribution
           cd distribution
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apk jar index.json index.min.json index.pb
+          git add apk jar index.min.json
           git diff --cached --check
           git commit -m "Publish Hentai Zone extension"
           git push origin repo
