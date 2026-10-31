@@ -238,7 +238,10 @@ abstract class HentaiZone : KeiSource() {
             genre = post.terms
                 .filter { it.slug !in HIDDEN_GENRES }
                 .joinToString { it.plainName }
-            description = if (premium) PREMIUM_DESCRIPTION else null
+            description = listOfNotNull(
+                post.contentText.takeIf { it.length >= MIN_DESCRIPTION },
+                PREMIUM_DESCRIPTION.takeIf { premium },
+            ).joinToString("\n\n").ifEmpty { null }
             status = SManga.COMPLETED
             // A series gets new chapters; a one-shot never changes.
             update_strategy = if (series.isEmpty()) UpdateStrategy.ONLY_FETCH_ONCE else UpdateStrategy.ALWAYS_UPDATE
@@ -388,7 +391,8 @@ abstract class HentaiZone : KeiSource() {
         private const val MIN_TAG_COUNT = 5
 
         private const val LIST_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded"
-        private const val DETAIL_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_links.wp:term,_embedded"
+        private const val DETAIL_FIELDS = "id,slug,title,date_gmt,class_list,content,_links.wp:featuredmedia,_links.wp:term,_embedded"
+        private const val MIN_DESCRIPTION = 20
 
         private val CHAPTER_NUMBER = Regex("""(\d+(?:[.,]\d+)?)""")
 

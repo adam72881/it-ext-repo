@@ -1,10 +1,19 @@
 # Novità
 
+## Hentai Zone 1.6.7
+
+- Nei dettagli compare il testo dell'articolo, quando il sito lo scrive (una trama o le parole chiave); l'avviso Premium va in fondo.
+
+## Hentai ITA 1.6.6
+
+- Nei dettagli compare la trama scritta dal sito, quando c'è (circa metà dei titoli), senza le righe promozionali.
+
 ## Hentai Archive 1.6.1
 
 - Prima versione per hentai-archive.com.
 - Popolari (più commentati), Recenti, Titolo e Casuale, con sezioni (Doujinshi, Fumetti porno, 3D, Volumi) e 73 categorie, una alla volta.
 - Ricerca nei manga, senza video.
+- Descrizione del titolo presa dalla trama scritta dal sito.
 - Esclusi solo i contenuti che indicano esplicitamente bambini o preadolescenti.
 
 ## Hentai Zone 1.6.6

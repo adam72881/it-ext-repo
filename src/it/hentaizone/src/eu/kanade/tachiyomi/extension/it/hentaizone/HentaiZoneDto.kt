@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 
 @Serializable
@@ -15,8 +16,12 @@ class PostDto(
     @SerialName("date_gmt") val dateGmt: String? = null,
     @SerialName("class_list") val classList: List<String> = emptyList(),
     @SerialName("_embedded") private val embedded: EmbeddedDto? = null,
+    private val content: RenderedDto? = null,
 ) {
     val plainTitle: String get() = Parser.unescapeEntities(title.rendered, false)
+
+    // The post text around the gallery: a synopsis on some posts.
+    val contentText: String get() = content?.rendered?.let { Jsoup.parseBodyFragment(it).text() }.orEmpty()
 
     val terms: List<TermDto> get() = embedded?.terms.orEmpty().flatten()
 

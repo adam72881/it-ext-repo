@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 
 @Serializable
@@ -19,8 +20,12 @@ class PostDto(
     // This site returns class_list as an object keyed by index, not as an array.
     @SerialName("class_list") private val classListJson: JsonElement? = null,
     @SerialName("_embedded") private val embedded: EmbeddedDto? = null,
+    private val content: RenderedDto? = null,
 ) {
     val plainTitle: String get() = Parser.unescapeEntities(title.rendered, false)
+
+    // The post text around the gallery: a synopsis on some posts.
+    val contentText: String get() = content?.rendered?.let { Jsoup.parseBodyFragment(it).text() }.orEmpty()
 
     val classList: List<String>
         get() = when (val classes = classListJson) {

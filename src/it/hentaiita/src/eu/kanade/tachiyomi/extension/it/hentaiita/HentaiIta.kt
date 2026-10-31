@@ -161,6 +161,7 @@ abstract class HentaiIta : KeiSource() {
             genre = post.terms
                 .filter { it.slug !in HIDDEN_GENRES }
                 .joinToString { it.plainName }
+            description = synopsis(post.contentText)
             status = SManga.COMPLETED
             update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
         }
@@ -254,6 +255,18 @@ abstract class HentaiIta : KeiSource() {
         )
     }
 
+    // The post text starts with the synopsis (on about half of the posts) and
+    // goes on with page-builder shortcodes, base64 blocks and promotional
+    // lines: keep what comes before the first promotional line.
+    private fun synopsis(text: String): String? {
+        val cleaned = text
+            .replace(SPACES, " ")
+            .replace(SHORTCODE, " ")
+            .replace(LONG_TOKEN, " ")
+        val end = PROMO_START.find(cleaned)?.range?.first ?: cleaned.length
+        return cleaned.substring(0, end).replace(SPACES, " ").trim().takeIf { it.length >= MIN_DESCRIPTION }
+    }
+
     private fun isAllowed(classes: Collection<String>, title: String): Boolean =
         classes.none { it in BLOCKED_CLASSES } && !BLOCKED_TEXT.containsMatchIn(title)
 
@@ -273,7 +286,16 @@ abstract class HentaiIta : KeiSource() {
         private const val PREMIUM_PATH = "/area-premium/"
 
         private const val LIST_FIELDS = "id,slug,link,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded"
-        private const val DETAIL_FIELDS = "id,slug,link,title,date_gmt,class_list,_links.wp:featuredmedia,_links.wp:term,_embedded"
+        private const val DETAIL_FIELDS = "id,slug,link,title,date_gmt,class_list,content,_links.wp:featuredmedia,_links.wp:term,_embedded"
+        private const val MIN_DESCRIPTION = 20
+
+        private val SHORTCODE = Regex("""\[/?[a-z_]+[^\]]*]""")
+        private val LONG_TOKEN = Regex("""\S{30,}""")
+        private val SPACES = Regex("""[\s\u00A0]+""")
+        private val PROMO_START = Regex(
+            """hentai (ita )?premium|nella nostra nuova area premium|volume completo|capitoli (successivi|precedenti)|i fumetti e i videogiochi della no safe zone""",
+            RegexOption.IGNORE_CASE,
+        )
 
         private val SIZE_SUFFIX = Regex("""-\d+x\d+(?=\.(?:jpe?g|png|webp|avif)$)""")
 

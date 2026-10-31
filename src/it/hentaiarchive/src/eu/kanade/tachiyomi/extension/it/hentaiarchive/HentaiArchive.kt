@@ -186,6 +186,9 @@ abstract class HentaiArchive : KeiSource() {
                 .filter { it.isNotEmpty() && it != "Hentai Recenti" }
                 .distinct()
                 .joinToString()
+            // The page description holds a short synopsis written by the site.
+            description = doc.selectFirst("meta[name=description]")?.attr("content")?.trim()
+                ?.takeUnless { it.isEmpty() || it.startsWith(GENERIC_DESCRIPTION) }
             status = SManga.COMPLETED
             update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
         }
@@ -230,6 +233,8 @@ abstract class HentaiArchive : KeiSource() {
     )
 
     companion object {
+        // Posts without their own text fall back to the site's generic one.
+        private const val GENERIC_DESCRIPTION = "Hentai Gratuiti, Fumetti Manga XXX"
         private val ARCHIVE_PAGE = Regex("""/page/(\d+)""")
         private val LD_DATE = Regex(""""datePublished":"([^"]+)"""")
         private val LD_THUMBNAIL = Regex(""""thumbnailUrl":"([^"]+)"""")
