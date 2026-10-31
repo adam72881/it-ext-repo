@@ -270,9 +270,9 @@ abstract class HentaiZone : KeiSource() {
         if (path.startsWith("/category/") || path.startsWith("/tag/") ||
             path.startsWith("/author/") || path.startsWith("/wp-") ||
             path.contains("/video") || path == "/hentai-manga/" ||
-            path.matches(Regex(""".*/page/\\d+/?"""))
+            path.matches(Regex(""".*/page/\d+/?"""))
         ) return false
-        return !path.substringAfterLast('/').matches(Regex(""".+\\.(jpg|jpeg|png|gif|webp|avif|pdf)$"""))
+        return !path.substringAfterLast('/').matches(Regex(""".+\.(jpg|jpeg|png|gif|webp|avif|pdf)$"""))
     }
 
     private fun isLoginPage(doc: Document): Boolean =
