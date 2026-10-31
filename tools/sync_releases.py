@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Create a GitHub release for every published extension version that has none.
+"""Keep exactly one GitHub release per extension: the version in the index.
 
 usage: sync_releases.py DISTRIBUTION_DIR CHANGELOG.md
 
-Tags look like hentaizone-v1.6.6. The APK and JAR come from the distribution
-(repo) branch; the notes are the matching "## <name> <version>" section of the
-changelog. Needs the gh CLI with GH_TOKEN and GITHUB_REPOSITORY set.
+Creates the release for each published version that has none, and deletes every
+other release (older versions, or extensions no longer in the index) together
+with its tag. Tags look like hentaizone-v1.6.8. The APK and JAR come from the
+distribution (repo) branch; the notes are the matching "## <name> <version>"
+section of the changelog. Runs inside the Action with GH_TOKEN set.
 """
 import json
 import re
@@ -21,7 +23,16 @@ existing = set(subprocess.run(
     capture_output=True, text=True, check=True,
 ).stdout.split())
 
-for ext in json.loads((dist / "index.min.json").read_text(encoding="utf-8")):
+extensions = json.loads((dist / "index.min.json").read_text(encoding="utf-8"))
+# The one release each extension should keep: its current version in the index.
+wanted = {f"{ext['pkg'].rsplit('.', 1)[-1]}-v{ext['version']}" for ext in extensions}
+
+# Remove older versions and releases of extensions that left the index.
+for tag in sorted(existing - wanted):
+    subprocess.run(["gh", "release", "delete", tag, "--cleanup-tag", "--yes"], check=True)
+    print(f"Deleted release {tag}")
+
+for ext in extensions:
     name = ext["name"].removeprefix("Tachiyomi: ")
     module = ext["pkg"].rsplit(".", 1)[-1]
     tag = f"{module}-v{ext['version']}"
