@@ -27,6 +27,27 @@
             "homeUrl": "https://hentai-ita.net"
           }
         ]
+      },
+      {
+        "name": "Hentai Zone",
+        "packageName": "eu.kanade.tachiyomi.extension.it.hentaizone",
+        "resources": {
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaizone-v1.6.2.apk",
+          "iconUrl": "https://cdn.jsdelivr.net/gh/keiyoushi/extensions-source@main/core/src/main/res/mipmap-xhdpi/ic_launcher.png",
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaizone-v1.6.2.jar"
+        },
+        "extensionLib": "1.6",
+        "versionCode": "106002",
+        "versionName": "1.6.2",
+        "contentWarning": "CONTENT_WARNING_NSFW",
+        "sources": [
+          {
+            "id": "7864123905182736401",
+            "name": "Hentai Zone",
+            "language": "it",
+            "homeUrl": "https://hentaizone.me"
+          }
+        ]
       }
     ]
   }
