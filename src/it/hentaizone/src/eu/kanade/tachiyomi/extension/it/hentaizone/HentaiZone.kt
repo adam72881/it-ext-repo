@@ -27,9 +27,8 @@ abstract class HentaiZone : KeiSource() {
     // The site exposes a catalogue but no independently verified latest feed.
     override val supportsLatest = false
 
-    // Mihon's "Open in WebView" action lands directly on the site's real login page.
-    // The user can choose Patreon OAuth or enter the credentials supplied by the site.
-    override fun getHomeUrl(): String = "$baseUrl/wp-login.php"
+    // Open the free catalogue first. The site's own login remains reachable at /wp-login.php.
+    override fun getHomeUrl(): String = "$baseUrl/hentai-manga/"
 
     private val blockedLabels = Regex(
         pattern = """(?i)(^|[^a-z])(loli|lolicon|shota|shotacon|underage|minor|minorenne|teen|schoolgirl|schoolboy|bambina|bambino)([^a-z]|$)""",
