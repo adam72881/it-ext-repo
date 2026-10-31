@@ -187,13 +187,13 @@ abstract class HentaiIta : KeiSource() {
         val base = SeriesTitle.split(post.plainTitle).base
         if (base.isEmpty()) return emptyList()
         val key = SeriesTitle.key(base)
-        val url = "$baseUrl/wp-json/wp/v2/posts".toHttpUrl().newBuilder()
+        val searchUrl = "$baseUrl/wp-json/wp/v2/posts".toHttpUrl().newBuilder()
             .addQueryParameter("search", base)
             .addQueryParameter("per_page", "100")
             .addQueryParameter("categories_exclude", (BLOCKED_CATEGORIES.keys + NON_READING_CATEGORIES.keys).joinToString(","))
             .addQueryParameter("_fields", "slug,link,title,date_gmt,class_list")
             .build()
-        val found = client.get(url, Fetch.XHR).parseAs<List<PostDto>>()
+        val found = client.get(searchUrl, Fetch.XHR).parseAs<List<PostDto>>()
             .filter { isAllowed(it.classList, it.plainTitle) }
             .mapNotNull { candidate ->
                 val split = SeriesTitle.split(candidate.plainTitle)
