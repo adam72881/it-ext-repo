@@ -14,6 +14,7 @@ keiyoushi {
         name = "Hentai Zone"
         lang = "it"
         baseUrl = "https://hentaizone.me"
+        id = 7864123905182736401L
     }
 
     deeplink {
