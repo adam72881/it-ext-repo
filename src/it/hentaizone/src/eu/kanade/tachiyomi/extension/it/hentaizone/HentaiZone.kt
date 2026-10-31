@@ -162,19 +162,25 @@ abstract class HentaiZone : KeiSource() {
         if (chapter.url.startsWith("http")) chapter.url else "$baseUrl${chapter.url}"
 
     private fun extractPageImages(doc: Document): List<String> {
+        // Hentai Zone's gallery uses .fg_thumbnail anchors as direct image URLs.
+        // Keep this selector first: the linked image can exist without an <img> src.
+        val galleryImages = doc.select(".fg_thumbnail a[href], a.fg_thumbnail[href]")
+            .map { it.absUrl("href") }
+            .filter { it.startsWith("https://") || it.startsWith("http://") }
+
         val imageSelectors = listOf(
             "#reader img", ".reader img", ".reading-content img", ".chapter-content img",
             ".entry-content img", ".comic-reader img", ".pages img", ".gallery img",
             "[class*=reader] img", "[id*=reader] img",
         )
-        return imageSelectors
+        return (galleryImages + imageSelectors
             .flatMap { selector -> doc.select(selector) }
             .mapNotNull { image ->
                 listOf("data-src", "data-lazy-src", "data-original", "data-full-url", "src")
                     .asSequence()
                     .map { image.absUrl(it) }
                     .firstOrNull { it.startsWith("https://") || it.startsWith("http://") }
-            }
+            })
             .distinct()
     }
 
