@@ -1,4 +1,4 @@
-name: Build Hentai Zone
+name: Build and publish Hentai Zone
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: hentai-zone-${{ github.ref }}
@@ -19,9 +19,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Checkout this repository
+      - name: Checkout source repository
         uses: actions/checkout@v4
 
       - name: Checkout Keiyoushi build system
@@ -52,10 +52,60 @@ jobs:
         working-directory: keiyoushi
         run: ./gradlew --no-daemon :src:it:hentaizone:spotlessApply :src:it:hentaizone:assembleRelease :src:it:hentaizone:lintRelease --stacktrace
 
-      - name: Upload build outputs
+      - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: hentai-zone-build
-          path: |
-            keiyoushi/src/it/hentaizone/build/outputs/apk/**/*.apk
+          path: keiyoushi/src/it/hentaizone/build/outputs/apk/**/*.apk
           if-no-files-found: error
+
+      - name: Checkout distribution branch
+        uses: actions/checkout@v4
+        with:
+          ref: repo
+          path: distribution
+          persist-credentials: true
+
+      - name: Publish APK and update extension index
+        env:
+          APK_SOURCE_DIR: keiyoushi/src/it/hentaizone/build/outputs/apk
+        run: |
+          set -euo pipefail
+          APK="$(find "$APK_SOURCE_DIR" -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          mkdir -p distribution/apk
+          APK_NAME="tachiyomi-it.hentaizone-v1.6.2.apk"
+          cp "$APK" "distribution/apk/$APK_NAME"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          index_path = Path("distribution/index.min.json")
+          entries = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else []
+          pkg = "eu.kanade.tachiyomi.extension.it.hentaizone"
+          entries = [entry for entry in entries if entry.get("pkg") != pkg]
+          entries.append({
+              "name": "Tachiyomi: Hentai Zone",
+              "pkg": pkg,
+              "apk": "tachiyomi-it.hentaizone-v1.6.2.apk",
+              "lang": "it",
+              "code": 106002,
+              "version": "1.6.2",
+              "nsfw": 1,
+              "sources": [{
+                  "name": "Hentai Zone",
+                  "lang": "it",
+                  "id": "7864123905182736401",
+                  "baseUrl": "https://hentaizone.me",
+                  "versionId": 1
+              }]
+          })
+          entries.sort(key=lambda entry: (entry.get("lang", ""), entry.get("name", "")))
+          index_path.write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+          PY
+          cd distribution
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apk/"$APK_NAME" index.min.json
+          git commit -m "Publish Hentai Zone extension"
+          git push origin repo
