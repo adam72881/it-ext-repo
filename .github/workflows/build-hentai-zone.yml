@@ -48,9 +48,9 @@ jobs:
           mkdir -p keiyoushi/src/it
           cp -R src/it/hentaizone keiyoushi/src/it/hentaizone
 
-      - name: Build release APK and JAR
+      - name: Format, build APK, and run release lint
         working-directory: keiyoushi
-        run: ./gradlew --no-daemon :src:it:hentaizone:spotlessApply :src:it:hentaizone:assembleRelease --stacktrace
+        run: ./gradlew --no-daemon :src:it:hentaizone:spotlessApply :src:it:hentaizone:assembleRelease :src:it:hentaizone:lintRelease --stacktrace
 
       - name: Upload build outputs
         uses: actions/upload-artifact@v4
@@ -58,5 +58,4 @@ jobs:
           name: hentai-zone-build
           path: |
             keiyoushi/src/it/hentaizone/build/outputs/apk/**/*.apk
-            keiyoushi/src/it/hentaizone/build/libs/**/*.jar
           if-no-files-found: error
