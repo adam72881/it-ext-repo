@@ -117,7 +117,15 @@ abstract class HentaiZone : KeiSource() {
     override suspend fun getMangaByUrl(url: okhttp3.HttpUrl): SManga? {
         if (url.host != baseUrl.toHttpUrl().host) return null
         val doc = client.get(url).asJsoup()
-        return mangaFromElement(doc, doc.selectFirst("article") ?: doc.body())
+        val title = doc.selectFirst("h1.entry-title, h1")?.text()?.trim().orEmpty()
+        if (title.isBlank() || isBlocked(doc.text())) return null
+
+        val thumbnail = doc.selectFirst("meta[property=og:image]")?.attr("content").orEmpty()
+        return SManga.create().apply {
+            this.title = title
+            this.url = url.encodedPath
+            thumbnail_url = thumbnail
+        }
     }
 
     override fun getMangaUrl(manga: SManga): String =
