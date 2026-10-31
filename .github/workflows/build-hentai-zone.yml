@@ -6,6 +6,7 @@ on:
       - hentai-zone-dev
     paths:
       - "src/it/hentaizone/**"
+      - "tools/**"
       - ".github/workflows/build-hentai-zone.yml"
   workflow_dispatch:
 
@@ -17,7 +18,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+      - name: Check live catalog and free reader markup
+        run: python3 tools/check_hentai_zone_site.py
+      - name: Validate protobuf schema and publisher syntax
+        run: |
+          python3 -m pip install --disable-pip-version-check grpcio-tools
+          python3 -m grpc_tools.protoc -I tools --python_out=tools tools/index.proto
+          PYTHONPATH=tools python3 -m py_compile tools/publish_hentai_zone.py tools/index_pb2.py
+
   build:
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -48,15 +64,34 @@ jobs:
           mkdir -p keiyoushi/src/it
           cp -R src/it/hentaizone keiyoushi/src/it/hentaizone
 
-      - name: Format, build APK, and run release lint
+      - name: Format, build APK and JAR, and run release lint
         working-directory: keiyoushi
         run: ./gradlew --no-daemon :src:it:hentaizone:spotlessApply :src:it:hentaizone:assembleRelease :src:it:hentaizone:lintRelease --stacktrace
+
+      - name: Verify build outputs and source metadata
+        run: |
+          test -s keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json
+          test "$(find keiyoushi/src/it/hentaizone/build/outputs/apk/release -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          test "$(find keiyoushi/src/it/hentaizone/build/outputs/jar/release -maxdepth 1 -name '*.jar' | wc -l)" -eq 1
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json")
+          d = json.loads(p.read_text())
+          assert d["packageName"] == "eu.kanade.tachiyomi.extension.it.hentaizone"
+          assert d["sources"][0]["lang"] == "it"
+          assert d["sources"][0]["baseUrl"] == "https://hentaizone.me"
+          print("APK/JAR/source metadata agree:", d["versionName"], d["versionCode"])
+          PY
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: hentai-zone-build
-          path: keiyoushi/src/it/hentaizone/build/outputs/apk/**/*.apk
+          path: |
+            keiyoushi/src/it/hentaizone/build/outputs/apk/release/*.apk
+            keiyoushi/src/it/hentaizone/build/outputs/jar/release/*.jar
+            keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json
           if-no-files-found: error
 
       - name: Checkout distribution branch
@@ -66,49 +101,20 @@ jobs:
           path: distribution
           persist-credentials: true
 
-      - name: Publish APK and update extension indexes
-        env:
-          APK_SOURCE_DIR: keiyoushi/src/it/hentaizone/build/outputs/apk
+      - name: Install protobuf compiler
+        run: |
+          python3 -m pip install --disable-pip-version-check grpcio-tools
+          python3 -m grpc_tools.protoc -I tools --python_out=tools tools/index.proto
+
+      - name: Publish APK, JAR, and valid repository indexes
         run: |
           set -euo pipefail
-          APK="$(find "$APK_SOURCE_DIR" -type f -name '*.apk' | head -n 1)"
-          test -n "$APK"
-          mkdir -p distribution/apk
-          APK_NAME="tachiyomi-it.hentaizone-v1.6.2.apk"
-          cp "$APK" "distribution/apk/$APK_NAME"
-          python3 - <<'PY'
-          import gzip
-          import json
-          from pathlib import Path
-
-          index_path = Path("distribution/index.min.json")
-          entries = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else []
-          pkg = "eu.kanade.tachiyomi.extension.it.hentaizone"
-          entries = [entry for entry in entries if entry.get("pkg") != pkg]
-          entries.append({
-              "name": "Tachiyomi: Hentai Zone",
-              "pkg": pkg,
-              "apk": "tachiyomi-it.hentaizone-v1.6.2.apk",
-              "lang": "it",
-              "code": 106002,
-              "version": "1.6.2",
-              "nsfw": 1,
-              "sources": [{
-                  "name": "Hentai Zone",
-                  "lang": "it",
-                  "id": "7864123905182736401",
-                  "baseUrl": "https://hentaizone.me",
-                  "versionId": 1
-              }]
-          })
-          entries.sort(key=lambda entry: (entry.get("lang", ""), entry.get("name", "")))
-          index_bytes = (json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
-          index_path.write_bytes(index_bytes)
-          Path("distribution/index.pb").write_bytes(gzip.compress(index_bytes, mtime=0))
-          PY
+          PYTHONPATH=tools python3 tools/publish_hentai_zone.py \
+            keiyoushi/src/it/hentaizone/build distribution
           cd distribution
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apk/"$APK_NAME" index.min.json index.pb
+          git add apk jar index.json index.min.json index.pb
+          git diff --cached --check
           git commit -m "Publish Hentai Zone extension"
           git push origin repo
