@@ -1,0 +1,29 @@
+name: GitHub releases
+
+# Creates the missing releases for the versions published on the repo branch.
+# The publish workflow calls it after each publish; it can also be run by hand.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  releases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout scripts and changelog
+        uses: actions/checkout@v4
+
+      - name: Checkout distribution branch
+        uses: actions/checkout@v4
+        with:
+          ref: repo
+          path: distribution
+
+      - name: Create missing releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 tools/sync_releases.py distribution CHANGELOG.md

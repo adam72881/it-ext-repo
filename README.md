@@ -19,7 +19,7 @@ L'app, se segue il formato attuale, legge anche `repo.json` e `index.pb` nella s
 
 Un push su uno di quei rami compila l'estensione con il sistema di build di Keiyoushi e pubblica APK, JAR e indici sul ramo `repo`. Sugli altri rami la workflow compila e fa il lint senza pubblicare. Prima della build, `tools/check_hentai_*_site.py` controlla che il sito abbia ancora la struttura che l'estensione usa.
 
-`tools/publish_extension.py` aggiorna solo l'estensione appena compilata. Si rifiuta di pubblicare se la versione non sale, se cambia l'ID della sorgente o se un'altra estensione dell'indice risulterebbe modificata.
+`tools/publish_extension.py` aggiorna solo l'estensione appena compilata. Non tocca l'indice se la versione è già pubblicata, e si rifiuta di pubblicare se la versione scende, se cambia l'ID della sorgente o se un'altra estensione dell'indice risulterebbe modificata. Dopo ogni pubblicazione `tools/sync_releases.py` crea la release su GitHub (tag come `hentaizone-v1.6.6`), con APK, JAR e le novità prese da `CHANGELOG.md`.
 
 ## Chiave di firma
 

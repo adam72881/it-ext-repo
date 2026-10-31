@@ -63,8 +63,12 @@ if digest.group(1) != index.signingKey:
             "and does not update in place. Add the SIGNING_KEY secret (see README) to fix it."
         )
 
-if old is not None and int(info["versionCode"]) <= old.versionCode:
-    raise SystemExit(f"Refusing non-upgrade versionCode {info['versionCode']} (published: {old.versionCode})")
+if old is not None and int(info["versionCode"]) == old.versionCode:
+    # A rerun, or a change outside the extension: nothing to publish.
+    print(f"{info['name']} {info['versionName']} is already published; index left unchanged.")
+    sys.exit(0)
+if old is not None and int(info["versionCode"]) < old.versionCode:
+    raise SystemExit(f"Refusing downgrade to versionCode {info['versionCode']} (published: {old.versionCode})")
 
 apk_dir, jar_dir = dist / "apk", dist / "jar"
 apk_dir.mkdir(parents=True, exist_ok=True)

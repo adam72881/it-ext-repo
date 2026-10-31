@@ -11,6 +11,9 @@ on:
       - "tools/publish_extension.py"
       - ".github/workflows/build-hentai-zone.yml"
       - ".github/workflows/build-extension.yml"
+      - ".github/workflows/releases.yml"
+      - "tools/sync_releases.py"
+      - "CHANGELOG.md"
   workflow_dispatch:
 
 permissions:
@@ -27,4 +30,10 @@ jobs:
       module: hentaizone
       preflight: check_hentai_zone_site.py
       publish: ${{ github.ref == 'refs/heads/hentai-zone-dev' }}
+    secrets: inherit
+
+  releases:
+    needs: hentai-zone
+    if: github.ref == 'refs/heads/hentai-zone-dev'
+    uses: ./.github/workflows/releases.yml
     secrets: inherit

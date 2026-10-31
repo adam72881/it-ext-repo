@@ -133,6 +133,7 @@ jobs:
               keiyoushi/src/it/${{ inputs.module }}/build distribution keiyoushi/.github/scripts \
               "$ANDROID_HOME/build-tools/35.0.0/apksigner"
             git -C distribution add -A apk jar index.json index.pb index.min.json repo.json
+            if git -C distribution diff --cached --quiet; then exit 0; fi
             git -C distribution diff --cached --check
             git -C distribution commit -m "Publish ${{ inputs.module }}"
             if git -C distribution push origin HEAD:repo; then exit 0; fi
