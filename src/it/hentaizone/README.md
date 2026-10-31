@@ -3,25 +3,39 @@
 Modulo Keiyoushi per Mihon/Tachimanga, separato da Hentai ITA.
 
 - Sito: https://hentaizone.me/
-- Catalogo free: https://hentaizone.me/hentai-manga/
+- Catalogo: https://hentaizone.me/hentai-manga/
+- Pagina gratuita di prova: https://hentaizone.me/lezioni-di-fitness/
 - Login ufficiale: https://hentaizone.me/wp-login.php
-- Paginazione catalogo verificata: `/hentai-manga/page/2/` e archivio fino a pagina 220.
 - Lingua: italiano
 - Libreria: KeiSource / libVersion 1.6
-- Pacchetto previsto: eu.kanade.tachiyomi.extension.it.hentaizone
+- Pacchetto: eu.kanade.tachiyomi.extension.it.hentaizone
 
-## Modalità Free e Premium
+## Confronto dei parser
 
-- Il catalogo pubblico e i contenuti gratuiti sono la modalità predefinita.
-- Per accedere a contenuti che richiedono un account, aprire la sorgente in Mihon e usare l'icona WebView (oppure il comando "Apri in WebView"). La pagina iniziale della WebView è impostata su `/wp-login.php`.
-- Il login ufficiale offre l'accesso tramite Patreon e l'accesso con username/password Hentai Zone. Il sito dichiara che le credenziali Hentai Zone vengono fornite dopo l'attivazione dell'abbonamento Patreon.
-- Dopo il login, tornare alla sorgente e riprovare il capitolo. Il trasferimento della sessione WebView alle richieste della sorgente non è ancora stato verificato su Mihon: non considerare il login funzionante finché non sarà superato il test pratico. L'estensione non memorizza password.
-- I capitoli premium restano soggetti ai controlli del sito: l'estensione non aggira abbonamenti, OAuth o restrizioni.
+Il driver pubblico Yamete per Hentai Zone usa la galleria `.fg_thumbnail a` come elenco dei collegamenti alle immagini originali; il test pubblico del driver su `/mind-control-ch-4/` si aspetta 16 immagini. Il parser Kotlin usa lo stesso selettore per il lettore.
 
-## Filtri di sicurezza
+Il driver Yamete per Hentai ITA usa invece `.blocks-gallery-item figure a` e apre ogni pagina allegata per leggere `.entry-attachment img`. Sono strutture diverse: non è corretto copiare alla cieca il selettore di Hentai ITA dentro Hentai Zone.
 
-Il parser esclude i risultati i cui testi/tag espongono esplicitamente etichette come loli, shota, underage, minorenne e teen. Un filtro basato sui soli metadati non può garantire che ogni opera non etichettata sia priva di personaggi dall'età ambigua; il catalogo va verificato prima della pubblicazione.
+Il codice sorgente di Hentai ITA non è presente in questo repository: sono disponibili il suo APK/JAR e i metadati di distribuzione. Il confronto del parser è quindi basato sul driver pubblico Yamete e non su un confronto sorgente-a-sorgente dei due APK.
 
-## Stato e build
+## Catalogo e lettura
 
-Il parser è una prima implementazione. Prima della pubblicazione devono riuscire la compilazione, il test del catalogo, la lettura del manga gratuito di prova e la verifica del login WebView. Questo repository di distribuzione non contiene il wrapper Gradle e il progetto root necessari: il modulo va compilato all'interno di `keiyoushi/extensions-source`.
+- Catalogo WordPress su `/hentai-manga/`, con paginazione.
+- Ricerca WordPress tramite `s`, `post_type` e `paged`.
+- Le pagine Hentai Zone con galleria usano `.fg_thumbnail a[href]` come collegamenti alle immagini.
+- I post senza un elenco di capitoli sono trattati come letture singole.
+- Le pagine premium non vengono sbloccate né aggirate.
+
+## Login
+
+La WebView apre `/wp-login.php`. La condivisione dei cookie WebView → OkHttp non è stata verificata: il login non va considerato funzionante finché non viene provato in Mihon.
+
+## Filtri
+
+Il parser esclude risultati con etichette esplicite come loli, shota, underage, minorenne e teen. I metadati da soli non garantiscono che tutte le opere con età ambigua siano etichettate correttamente; non è possibile promettere un filtro perfetto senza revisione dei contenuti.
+
+## Controlli prima della build
+
+La workflow esegue prima una verifica HTTP del catalogo e della pagina gratuita di prova, controlla che il markup della galleria sia presente, valida lo schema Protocol Buffers e il publisher. Solo se questi controlli passano avvia la compilazione.
+
+La pubblicazione genera APK, JAR, `index.json`, `index.min.json` e `index.pb`. L'indice `index.pb` viene serializzato come Protocol Buffers e poi compresso GZIP, seguendo lo schema ufficiale Keiyoushi; non viene più creato comprimendo JSON.
