@@ -16,15 +16,16 @@ import org.jsoup.nodes.Element
 import java.io.IOException
 
 /**
- * Public and authenticated catalogue adapter for HentaiZone.me.
+ * Catalogue adapter for the public HentaiZone.me pages.
  *
- * Login is performed by the user in Mihon's built-in WebView. Requests use the
- * source cookie jar, so the site session established there is reused normally.
+ * The site login can be opened in Mihon's WebView. Session sharing is not
+ * assumed here; access is only granted when the site serves the requested pages.
  */
 @Source
 abstract class HentaiZone : KeiSource() {
 
-    override val supportsLatest = true
+    // The site exposes a catalogue but no independently verified latest feed.
+    override val supportsLatest = false
 
     // Mihon's "Open in WebView" action lands directly on the site's real login page.
     // The user can choose Patreon OAuth or enter the credentials supplied by the site.
@@ -76,7 +77,20 @@ abstract class HentaiZone : KeiSource() {
             }
         }
 
-        val updatedChapters = if (fetchChapters) extractChapters(doc) else chapters
+        val updatedChapters = if (fetchChapters) {
+            extractChapters(doc).ifEmpty {
+                // Some Hentai Zone posts are one-shot readers with no chapter list.
+                listOf(
+                    SChapter.create().apply {
+                        name = "Lettura"
+                        url = manga.url
+                        chapter_number = 1f
+                    },
+                )
+            }
+        } else {
+            chapters
+        }
         return SMangaUpdate(updated, updatedChapters)
     }
 
@@ -91,35 +105,41 @@ abstract class HentaiZone : KeiSource() {
             )
         }
 
-        val pageImages = doc.select(
-            "#reader img, .reader img, .reading-content img, .chapter-content img, " +
-                ".entry-content img, .comic-reader img, .pages img",
-        ).mapNotNull { image ->
-            image.absUrl("data-src")
-                .ifBlank { image.absUrl("data-lazy-src") }
-                .ifBlank { image.absUrl("data-original") }
-                .ifBlank { image.absUrl("src") }
-                .takeIf { it.startsWith("https://") || it.startsWith("http://") }
-        }.distinct()
+        val imageSelectors = listOf(
+            "#reader img", ".reader img", ".reading-content img", ".chapter-content img",
+            ".entry-content img", ".comic-reader img", ".pages img", ".gallery img",
+            "[class*=reader] img", "[id*=reader] img",
+        )
+        val pageImages = imageSelectors
+            .flatMap { selector -> doc.select(selector) }
+            .mapNotNull { image ->
+                listOf("data-src", "data-lazy-src", "data-original", "data-full-url", "src")
+                    .asSequence()
+                    .map { image.absUrl(it) }
+                    .firstOrNull { it.startsWith("https://") || it.startsWith("http://") }
+            }
+            .distinct()
 
         if (pageImages.isNotEmpty()) {
             return pageImages.mapIndexed { index, image -> Page(index, imageUrl = image) }
         }
 
+        // A Patreon button may be displayed on a free manga page too. Only
+        // classify an actual access-denied/login response as restricted.
         val pageText = doc.text()
-        if (pageText.contains("patreon", ignoreCase = true) ||
-            pageText.contains("premium", ignoreCase = true) ||
-            pageText.contains("abbonati", ignoreCase = true) ||
-            pageText.contains("accesso richiesto", ignoreCase = true)
-        ) {
+        val accessDenied = listOf(
+            "devi essere abbonato", "contenuto riservato agli abbonati",
+            "solo per gli abbonati", "accesso riservato", "effettua il login per leggere",
+            "devi effettuare l'accesso", "accesso richiesto",
+        ).any { pageText.contains(it, ignoreCase = true) }
+        if (accessDenied || isLoginPage(doc)) {
             throw IOException(
-                "Questo contenuto richiede l'accesso Premium. " +
-                    "Accedi dal WebView ufficiale di Hentai Zone e riprova. " +
-                    "L'estensione non aggira abbonamenti o controlli di accesso.",
+                "Il sito non ha restituito le pagine di lettura: potrebbe essere richiesto l'accesso. " +
+                    "Accedi tramite il sito ufficiale e riprova. Nessun controllo Premium viene aggirato.",
             )
         }
 
-        throw IOException("Nessuna pagina di lettura trovata. Il capitolo potrebbe essere gratuito ma non disponibile.")
+        throw IOException("Nessuna immagine di lettura trovata nella pagina restituita dal sito.")
     }
 
     override suspend fun getMangaByUrl(url: okhttp3.HttpUrl): SManga? {
@@ -149,8 +169,9 @@ abstract class HentaiZone : KeiSource() {
         }.distinctBy { it.url }
 
         val hasNext = doc.selectFirst(
-            "a.next, .pagination a.next, a[rel=next], .nav-links a.next",
-        ) != null || doc.select("a[href*='/page/']").isNotEmpty()
+            "a.next, a.next.page-numbers, .pagination a.next, a[rel=next], " +
+                ".nav-links a.next, .page-numbers.next",
+        ) != null
 
         return MangasPage(mangas, hasNext)
     }
@@ -208,7 +229,7 @@ abstract class HentaiZone : KeiSource() {
 
     private fun isLoginPage(doc: Document): Boolean =
         doc.selectFirst("form#loginform, form[action*='wp-login.php']") != null ||
-            doc.text().contains("accedi con patreon", ignoreCase = true)
+            doc.selectFirst("form[action*=login], input[type=password]") != null
 
     private fun isBlocked(text: String): Boolean = blockedLabels.containsMatchIn(text)
 }
