@@ -102,7 +102,7 @@ jobs:
               }]
           })
           entries.sort(key=lambda entry: (entry.get("lang", ""), entry.get("name", "")))
-          index_bytes = (json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\\n").encode("utf-8")
+          index_bytes = (json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
           index_path.write_bytes(index_bytes)
           Path("distribution/index.pb").write_bytes(gzip.compress(index_bytes, mtime=0))
           PY
