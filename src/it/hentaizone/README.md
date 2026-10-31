@@ -3,20 +3,24 @@
 Modulo Keiyoushi per Mihon/Tachimanga, separato da Hentai ITA.
 
 - Sito: https://hentaizone.me/
+- Catalogo free: https://hentaizone.me/hentai-manga/
+- Login ufficiale: https://hentaizone.me/wp-login.php
 - Lingua: italiano
 - Libreria: KeiSource / libVersion 1.6
 - Pacchetto previsto: eu.kanade.tachiyomi.extension.it.hentaizone
 
-## Stato tecnico
+## Modalità Free e Premium
 
-Il catalogo pubblico del sito espone la sezione `/hentai-manga/` con paginazione (la pagina verificata mostra 220 pagine) e una pagina di ricerca avanzata.
-
-La pagina dettaglio campionata presenta il pulsante di accesso tramite Patreon. Il lettore non è stato verificato come contenuto pubblico. Il codice non aggira OAuth, login o contenuti riservati: restituisce le immagini solo quando il sito le espone direttamente nella pagina del capitolo.
+- Il catalogo pubblico e i contenuti gratuiti sono la modalità predefinita.
+- Per accedere a contenuti che richiedono un account, aprire la sorgente in Mihon e usare l'icona WebView (oppure il comando "Apri in WebView"). La pagina iniziale della WebView è impostata su `/wp-login.php`.
+- Il login ufficiale offre l'accesso tramite Patreon e l'accesso con username/password Hentai Zone. Il sito dichiara che le credenziali Hentai Zone vengono fornite dopo l'attivazione dell'abbonamento Patreon.
+- Dopo il login, tornare alla sorgente e riprovare il capitolo. Le richieste dell'estensione usano il cookie jar della sorgente; non vengono memorizzate password nell'estensione.
+- I capitoli premium restano soggetti ai controlli del sito: l'estensione non aggira abbonamenti, OAuth o restrizioni.
 
 ## Filtri di sicurezza
 
-Il parser esclude i risultati i cui testi/tag espongono esplicitamente etichette come loli, shota, underage, minorenne e teen. Un filtro basato sui soli metadati non può garantire che ogni opera non etichettata sia priva di personaggi dall'età ambigua; per questo il catalogo deve essere verificato prima della pubblicazione.
+Il parser esclude i risultati i cui testi/tag espongono esplicitamente etichette come loli, shota, underage, minorenne e teen. Un filtro basato sui soli metadati non può garantire che ogni opera non etichettata sia priva di personaggi dall'età ambigua; il catalogo va verificato prima della pubblicazione.
 
-## Build
+## Stato e build
 
-Questo modulo va compilato all'interno del progetto Keiyoushi extensions-source (guida: https://github.com/keiyoushi/extensions-source/blob/main/CONTRIBUTING.md). Il repository di distribuzione `it-ext-repo` non contiene al momento il wrapper Gradle e il progetto root necessari a produrre APK/JAR.
+Il parser è una prima implementazione e deve ancora essere compilato e provato in Mihon. Questo repository di distribuzione non contiene il wrapper Gradle e il progetto root necessari: il modulo va compilato all'interno di `keiyoushi/extensions-source`.
