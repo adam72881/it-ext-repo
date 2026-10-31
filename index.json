@@ -11,13 +11,13 @@
         "name": "Hentai Archive",
         "packageName": "eu.kanade.tachiyomi.extension.it.hentaiarchiveita",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaiarchiveita-v1.6.1.apk",
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaiarchiveita-v1.6.2.apk",
           "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaiarchiveita-v1.6.1.jar"
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaiarchiveita-v1.6.2.jar"
         },
         "extensionLib": "1.6",
-        "versionCode": "106001",
-        "versionName": "1.6.1",
+        "versionCode": "106002",
+        "versionName": "1.6.2",
         "contentWarning": "CONTENT_WARNING_NSFW",
         "sources": [
           {
