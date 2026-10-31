@@ -28,6 +28,10 @@ Tutte le liste usano l'API REST di WordPress (`/wp-json/wp/v2/posts`). Sul sito 
 
 Molti titoli recenti mostrano nella scheda "Classic" immagini ospitate in `/area-premium/`, che non sono pubbliche. La stessa pagina ha però una galleria pubblica completa nella scheda "Mobile", e la lettura usa quella. Se un titolo ha solo immagini nell'area premium, compare un messaggio che lo spiega.
 
+## Capitoli delle serie
+
+Il sito non collega i capitoli di una serie: sono articoli separati con lo stesso titolo base e un segno finale ("Titolo 2", "Titolo [Parte 1]", "Titolo – Prima Parte", "Titolo – Capitoli 1 e 2"). Aprendo un titolo, l'estensione cerca il titolo base e mostra come capitoli gli articoli con la stessa base (`SeriesTitle.kt`). Spesso è pubblico solo il primo capitolo: il volume completo è nell'area premium del sito.
+
 ## Contenuti esclusi
 
 Sono esclusi solo i contenuti che indicano esplicitamente bambini o preadolescenti, sia nelle richieste al sito sia sulle schede ricevute:

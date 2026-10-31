@@ -29,6 +29,10 @@ Gli archivi hanno 9 titoli per pagina: ogni pagina dell'app ne legge due.
 - **Sezione**: Tutti i manga, Doujinshi, Fumetti porno, Fumetti porno 3D, Volumi.
 - **Categoria**: una delle 73 categorie del sito. Il sito non permette di combinarle: più categorie insieme vengono ridotte a una. Se scegli una categoria, vale quella invece della sezione.
 
+## Capitoli delle serie
+
+Il sito non collega i capitoli di una serie: sono articoli separati con lo stesso titolo base e un segno finale ("Titolo 2", "Titolo [Parte 1]", "Titolo – Prima Parte"), a volte con lo stesso identico titolo e un "-2" nell'indirizzo. Aprendo un titolo, l'estensione cerca il titolo base (due pagine di risultati) e mostra come capitoli gli articoli con la stessa base (`SeriesTitle.kt`).
+
 ## Contenuti esclusi
 
 Solo i contenuti che indicano esplicitamente bambini o preadolescenti: la categoria Sailor Moon (protagoniste alle medie) e i titoli con loli, shota, preteen, underage, minorenne, bambina/bambino, elementari. I video non hanno pagine da leggere e sono esclusi.

@@ -154,6 +154,7 @@ abstract class HentaiIta : KeiSource() {
         if (!isAllowed(post.classList, post.plainTitle)) {
             throw IOException("Questo titolo è escluso dall'estensione.")
         }
+        val series = seriesChapters(post, manga.url)
 
         manga.apply {
             title = post.plainTitle
@@ -163,16 +164,53 @@ abstract class HentaiIta : KeiSource() {
                 .joinToString { it.plainName }
             description = synopsis(post.contentText)
             status = SManga.COMPLETED
-            update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
+            // A series gets new chapters; a one-shot never changes.
+            update_strategy = if (series.isEmpty()) UpdateStrategy.ONLY_FETCH_ONCE else UpdateStrategy.ALWAYS_UPDATE
         }
 
-        val chapter = SChapter.create().apply {
-            url = manga.url
-            name = "Capitolo unico"
-            chapter_number = 1f
-            date_upload = DATE_FORMAT.tryParse(post.dateGmt)
+        val chapters = series.ifEmpty {
+            listOf(
+                SChapter.create().apply {
+                    url = manga.url
+                    name = "Capitolo unico"
+                    chapter_number = 1f
+                    date_upload = DATE_FORMAT.tryParse(post.dateGmt)
+                },
+            )
         }
-        return SMangaUpdate(manga, listOf(chapter))
+        return SMangaUpdate(manga, chapters)
+    }
+
+    // The other chapters of the series: posts found by searching the base
+    // title whose own title has the same base. Empty for a one-shot.
+    private suspend fun seriesChapters(post: PostDto, mangaUrl: String): List<SChapter> {
+        val base = SeriesTitle.split(post.plainTitle).base
+        if (base.isEmpty()) return emptyList()
+        val key = SeriesTitle.key(base)
+        val url = "$baseUrl/wp-json/wp/v2/posts".toHttpUrl().newBuilder()
+            .addQueryParameter("search", base)
+            .addQueryParameter("per_page", "100")
+            .addQueryParameter("categories_exclude", (BLOCKED_CATEGORIES.keys + NON_READING_CATEGORIES.keys).joinToString(","))
+            .addQueryParameter("_fields", "slug,link,title,date_gmt,class_list")
+            .build()
+        val found = client.get(url, Fetch.XHR).parseAs<List<PostDto>>()
+            .filter { isAllowed(it.classList, it.plainTitle) }
+            .mapNotNull { candidate ->
+                val split = SeriesTitle.split(candidate.plainTitle)
+                (candidate to (split.number ?: 1)).takeIf { SeriesTitle.key(split.base) == key }
+            }
+            .distinctBy { it.first.path }
+        if (found.size < 2 || found.none { it.first.path == mangaUrl || it.first.slug == post.slug }) return emptyList()
+
+        val duplicateNames = found.groupingBy { it.first.plainTitle }.eachCount().filterValues { it > 1 }.keys
+        return found.sortedBy { it.second }.map { (chapterPost, number) ->
+            SChapter.create().apply {
+                url = chapterPost.path
+                name = if (chapterPost.plainTitle in duplicateNames) "${chapterPost.plainTitle} – Capitolo $number" else chapterPost.plainTitle
+                chapter_number = number.toFloat()
+                date_upload = DATE_FORMAT.tryParse(chapterPost.dateGmt)
+            }
+        }.asReversed()
     }
 
     private suspend fun fetchPost(slug: String, details: Boolean = false): PostDto? {

@@ -1,5 +1,13 @@
 # Novità
 
+## Hentai Archive 1.6.2
+
+- Aprendo un titolo che fa parte di una serie compaiono tutti i suoi capitoli ("Titolo 2", "[Parte 1]", "Prima Parte"…), riconosciuti dal titolo perché il sito non li collega; quelli nuovi arrivano con l'aggiornamento della libreria.
+
+## Hentai ITA 1.6.7
+
+- Aprendo un titolo che fa parte di una serie compaiono tutti i suoi capitoli pubblici ("Sonno pesante 1" e "2", "Rimedi estremi – Capitoli 1 e 2" e "3"…), riconosciuti dal titolo perché il sito non li collega.
+
 ## Hentai Zone 1.6.7
 
 - Nei dettagli compare il testo dell'articolo, quando il sito lo scrive (una trama o le parole chiave); l'avviso Premium va in fondo.

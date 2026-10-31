@@ -177,6 +177,8 @@ abstract class HentaiArchive : KeiSource() {
             throw IOException("Questo titolo è escluso dall'estensione.")
         }
         val html = doc.html()
+        val date = DATE_FORMAT.tryParse(LD_DATE.find(html)?.groupValues?.get(1))
+        val series = seriesChapters(title, manga.url, date)
 
         manga.apply {
             this.title = title
@@ -190,15 +192,61 @@ abstract class HentaiArchive : KeiSource() {
             description = doc.selectFirst("meta[name=description]")?.attr("content")?.trim()
                 ?.takeUnless { it.isEmpty() || it.startsWith(GENERIC_DESCRIPTION) }
             status = SManga.COMPLETED
-            update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
+            // A series gets new chapters; a one-shot never changes.
+            update_strategy = if (series.isEmpty()) UpdateStrategy.ONLY_FETCH_ONCE else UpdateStrategy.ALWAYS_UPDATE
         }
-        val chapter = SChapter.create().apply {
-            url = manga.url
-            name = "Capitolo unico"
-            chapter_number = 1f
-            date_upload = DATE_FORMAT.tryParse(LD_DATE.find(html)?.groupValues?.get(1))
+        val chapters = series.ifEmpty {
+            listOf(
+                SChapter.create().apply {
+                    url = manga.url
+                    name = "Capitolo unico"
+                    chapter_number = 1f
+                    date_upload = date
+                },
+            )
         }
-        return SMangaUpdate(manga, listOf(chapter))
+        return SMangaUpdate(manga, chapters)
+    }
+
+    // The other chapters of the series: search results for the base title
+    // whose own title has the same base. Chapters may even share the exact
+    // title; then the "-2" the site adds to the address gives the number.
+    private suspend fun seriesChapters(title: String, mangaUrl: String, date: Long): List<SChapter> {
+        val base = SeriesTitle.split(title).base
+        if (base.isEmpty()) return emptyList()
+        val key = SeriesTitle.key(base)
+        val docs = coroutineScope {
+            (1..SERIES_SEARCH_PAGES).map { archivePage ->
+                async {
+                    val url = archiveUrl(archivePage, Query(text = base, sort = SortMode.DATE))
+                    client.get(url, Fetch.DOCUMENT, ensureSuccess = false).use { response ->
+                        if (response.isSuccessful) response.asJsoup() else null
+                    }
+                }
+            }.map { it.await() }
+        }.filterNotNull()
+
+        val found = docs.flatMap(::parseCards)
+            .mapNotNull { card ->
+                val split = SeriesTitle.split(card.title)
+                if (SeriesTitle.key(split.base) != key) return@mapNotNull null
+                val number = split.number
+                    ?: SLUG_NUMBER.find(card.url.trim('/'))?.groupValues?.get(1)?.toIntOrNull()
+                    ?: 1
+                card to number
+            }
+            .distinctBy { it.first.url }
+        if (found.size < 2 || found.none { it.first.url == mangaUrl }) return emptyList()
+
+        val duplicateNames = found.groupingBy { it.first.title }.eachCount().filterValues { it > 1 }.keys
+        return found.sortedBy { it.second }.map { (card, number) ->
+            SChapter.create().apply {
+                url = card.url
+                name = if (card.title in duplicateNames) "${card.title} – Capitolo $number" else card.title
+                chapter_number = number.toFloat()
+                if (card.url == mangaUrl) date_upload = date
+            }
+        }.asReversed()
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
@@ -235,6 +283,8 @@ abstract class HentaiArchive : KeiSource() {
     companion object {
         // Posts without their own text fall back to the site's generic one.
         private const val GENERIC_DESCRIPTION = "Hentai Gratuiti, Fumetti Manga XXX"
+        private const val SERIES_SEARCH_PAGES = 2
+        private val SLUG_NUMBER = Regex("""-(\d+)$""")
         private val ARCHIVE_PAGE = Regex("""/page/(\d+)""")
         private val LD_DATE = Regex(""""datePublished":"([^"]+)"""")
         private val LD_THUMBNAIL = Regex(""""thumbnailUrl":"([^"]+)"""")
