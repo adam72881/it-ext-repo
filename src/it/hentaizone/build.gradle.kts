@@ -15,4 +15,8 @@ keiyoushi {
         lang = "it"
         baseUrl = "https://hentaizone.me"
     }
+
+    deeplink {
+        path("/..*")
+    }
 }
