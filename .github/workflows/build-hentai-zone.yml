@@ -16,9 +16,8 @@ on:
 permissions:
   contents: write
 
-# Shared with the Hentai ITA workflow so two publishes never race on the repo branch.
 concurrency:
-  group: extension-builds
+  group: hentai-zone-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

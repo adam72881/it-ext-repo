@@ -122,14 +122,20 @@ jobs:
           SIGNING_KEY_CONFIGURED: ${{ env.HAS_SIGNING_KEY }}
         run: |
           set -euo pipefail
-          python3 tools/publish_extension.py \
-            keiyoushi/src/it/${{ inputs.module }}/build distribution keiyoushi/.github/scripts \
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          cd distribution
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A apk jar index.json index.pb index.min.json repo.json
-          git diff --cached --check
-          git commit -m "Publish ${{ inputs.module }}"
-          git pull --rebase origin repo
-          git push origin repo
+          git -C distribution config user.name "github-actions[bot]"
+          git -C distribution config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The other extension's workflow may publish at the same time: on a
+          # rejected push, start again from the updated index.
+          for attempt in 1 2 3 4; do
+            git -C distribution fetch origin repo
+            git -C distribution reset --hard origin/repo
+            python3 tools/publish_extension.py \
+              keiyoushi/src/it/${{ inputs.module }}/build distribution keiyoushi/.github/scripts \
+              "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+            git -C distribution add -A apk jar index.json index.pb index.min.json repo.json
+            git -C distribution diff --cached --check
+            git -C distribution commit -m "Publish ${{ inputs.module }}"
+            if git -C distribution push origin HEAD:repo; then exit 0; fi
+            sleep $((attempt * 10))
+          done
+          exit 1
