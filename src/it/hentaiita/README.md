@@ -33,7 +33,7 @@ Molti titoli recenti mostrano nella scheda "Classic" immagini ospitate in `/area
 Sono esclusi solo i contenuti che indicano esplicitamente minori, sia nelle richieste al sito sia sulle schede ricevute:
 
 - la categoria schoolgirls;
-- le serie con personaggi canonicamente bambini o liceali: My Hero Academia, Sailor Moon (e le sue sottocategorie), Fantagenitori, Boruto, Doraemon, Ben 10, Gravity Falls, Prison School, High School DxD, High School of the Dead, Teen Titans, Kim Possible, Totally Spies, Winx;
+- le serie con protagonisti bambini o alle medie: Sailor Moon (e le sue sottocategorie), Fantagenitori, Boruto, Doraemon, Ben 10, Gravity Falls;
 - i titoli che contengono parole come loli, shota, preteen, underage, minorenne, minori, bambina/bambino, child, liceale, elementari.
 
 Queste voci non compaiono tra i filtri e non si possono riattivare. La categoria teen (18-19 anni) e i tag "school" e "scuola" restano visibili; si possono escludere a mano dai filtri.

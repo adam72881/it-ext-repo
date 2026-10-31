@@ -46,8 +46,8 @@ La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso 
 
 Sono esclusi solo i contenuti che indicano esplicitamente minori, sia nelle richieste al sito sia sulle schede ricevute:
 
-- tag: school girl, liceale, uniforme scolastica, Fantagenitori, Teen Titans;
-- categorie di serie con personaggi canonicamente minorenni: My Hero Academia, Sailor Moon;
+- tag: school girl, liceale, uniforme scolastica, Fantagenitori;
+- la categoria Sailor Moon (protagoniste alle medie);
 - titoli che contengono loli, shota, preteen, underage, minorenne, bambina/bambino, liceale/liceali, elementari.
 
 Queste voci non compaiono tra i filtri e non si possono riattivare. La categoria Teen (18-19 anni) e i tag su università e studenti restano visibili; si possono escludere a mano dai filtri.
