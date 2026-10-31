@@ -73,23 +73,3 @@ class FilterDataDto(
 @Serializable
 class GalleryImageDto(val src: String)
 
-// Page-count index built daily by tools/build_page_index.py.
-@Serializable
-class PageIndexDto(val entries: List<PageIndexEntryDto>)
-
-@Serializable
-class PageIndexEntryDto(
-    @SerialName("u") val url: String,
-    @SerialName("t") val title: String,
-    @SerialName("i") private val thumbnail: String? = null,
-    @SerialName("p") val pages: Int,
-    @SerialName("d") val date: String,
-    @SerialName("c") val categories: List<Int> = emptyList(),
-    @SerialName("g") val tags: List<Int> = emptyList(),
-) {
-    fun toSManga() = SManga.create().apply {
-        url = this@PageIndexEntryDto.url
-        title = this@PageIndexEntryDto.title
-        thumbnail_url = thumbnail
-    }
-}

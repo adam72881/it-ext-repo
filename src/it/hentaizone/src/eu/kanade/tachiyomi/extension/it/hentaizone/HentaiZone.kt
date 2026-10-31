@@ -18,7 +18,6 @@ import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.toJsonElement
 import keiyoushi.utils.tryParse
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
@@ -69,13 +68,8 @@ abstract class HentaiZone : KeiSource() {
             excludedCategories = categories.filter { it.state == Filter.TriState.STATE_EXCLUDE },
             includedTags = tags.filter { it.state == Filter.TriState.STATE_INCLUDE },
             excludedTags = tags.filter { it.state == Filter.TriState.STATE_EXCLUDE },
-            minPages = filters.firstInstanceOrNull<MinPagesFilter>()?.pages ?: 0,
         )
-        return when {
-            search.sort == SortMode.PAGES || search.minPages > 0 -> indexListing(page, search)
-            search.sort == SortMode.POPULAR -> popularListing(page, search)
-            else -> apiListing(page, search)
-        }
+        return if (search.sort == SortMode.POPULAR) popularListing(page, search) else apiListing(page, search)
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -129,45 +123,6 @@ abstract class HentaiZone : KeiSource() {
             .filter { isAllowed(it.classList, it.plainTitle) }
             .map { it.toSManga() }
         return MangasPage(mangas, page < totalPages)
-    }
-
-    // Page counts are not in the site's lists; they come from the daily index.
-    // With "Pagine minime" and another sort, date and title still apply.
-    private suspend fun indexListing(page: Int, query: Query): MangasPage {
-        val index = try {
-            client.get(PAGE_INDEX_URL, Fetch.XHR).parseAs<PageIndexDto>()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            throw IOException("Indice delle pagine non disponibile, riprova più tardi.", e)
-        }
-        val text = query.text.lowercase(Locale.ITALIAN)
-        val matches = index.entries.filter { entry ->
-            val categories = entry.categories
-            entry.pages >= query.minPages &&
-                (query.section.id == null || query.section.id in categories) &&
-                query.includedCategories.all { it.id in categories } &&
-                query.excludedCategories.none { it.id in categories } &&
-                query.includedTags.all { it.id in entry.tags } &&
-                query.excludedTags.none { it.id in entry.tags } &&
-                when (query.access) {
-                    Access.ALL -> true
-                    Access.FREE -> PREMIUM_CATEGORY_ID !in categories
-                    Access.PREMIUM -> PREMIUM_CATEGORY_ID in categories
-                } &&
-                categories.none { it in BLOCKED_CATEGORIES || it in NON_READING_CATEGORIES } &&
-                entry.tags.none { it in BLOCKED_TAGS } &&
-                !BLOCKED_TEXT.containsMatchIn(entry.title) &&
-                (text.isEmpty() || text in entry.title.lowercase(Locale.ITALIAN))
-        }
-        val sorted = when (query.sort) {
-            SortMode.PAGES -> matches.sortedBy { it.pages }
-            SortMode.TITLE -> matches.sortedBy { it.title.lowercase(Locale.ITALIAN) }
-            else -> matches.sortedBy { it.date }
-        }.let { if (query.ascending) it else it.asReversed() }
-
-        val mangas = sorted.drop((page - 1) * API_PAGE_SIZE).take(API_PAGE_SIZE).map { it.toSManga() }
-        return MangasPage(mangas, page * API_PAGE_SIZE < sorted.size)
     }
 
     // Two archive pages per app page: the cards dropped by the exclusions would
@@ -379,7 +334,6 @@ abstract class HentaiZone : KeiSource() {
                 add(SortFilter())
                 add(SectionFilter())
                 add(AccessFilter())
-                add(MinPagesFilter())
                 if (terms != null) {
                     add(Filter.Separator())
                     add(Filter.Header("Tocca una volta per includere, due volte per escludere"))
@@ -387,7 +341,7 @@ abstract class HentaiZone : KeiSource() {
                     add(TagGroup(terms.tags.filter { it.count >= MIN_TAG_COUNT }.toOptions(BLOCKED_TAGS.values.toSet())))
                 }
                 add(Filter.Separator())
-                add(Filter.Header("Popolari = più commentati. «Più pagine» e «Pagine minime» usano un indice aggiornato ogni giorno e non includono i Premium. I contenuti con minori sono sempre esclusi."))
+                add(Filter.Header("Popolari = più commentati. I contenuti con minori sono sempre esclusi."))
             },
         )
     }
@@ -410,7 +364,6 @@ abstract class HentaiZone : KeiSource() {
         val excludedCategories: List<TermOption> = emptyList(),
         val includedTags: List<TermOption> = emptyList(),
         val excludedTags: List<TermOption> = emptyList(),
-        val minPages: Int = 0,
     )
 
     private class Card(
@@ -437,7 +390,6 @@ abstract class HentaiZone : KeiSource() {
         private const val LIST_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded"
         private const val DETAIL_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_links.wp:term,_embedded"
 
-        private const val PAGE_INDEX_URL = "https://raw.githubusercontent.com/adam72881/it-ext-repo/data/hentaizone-pages.json"
         private val CHAPTER_NUMBER = Regex("""(\d+(?:[.,]\d+)?)""")
 
         private const val CARD_SELECTOR = "article.elementor-post, article.type-post"
