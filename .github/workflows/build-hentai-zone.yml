@@ -97,10 +97,13 @@ jobs:
           path: distribution
           persist-credentials: true
 
-      - name: Publish APK, JAR, and the repository's JSON index
+      - name: Install official Protobuf runtime
+        run: python3 -m pip install --user 'protobuf>=7.35.1,<8'
+
+      - name: Publish APK, JAR, JSON and official Protobuf indexes
         run: |
           set -euo pipefail
-          python3 tools/publish_hentai_zone.py keiyoushi/src/it/hentaizone/build distribution
+          python3 tools/publish_hentai_zone.py keiyoushi/src/it/hentaizone/build distribution keiyoushi/.github/scripts
           cd distribution
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
