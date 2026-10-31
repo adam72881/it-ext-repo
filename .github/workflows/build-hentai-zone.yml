@@ -1,0 +1,54 @@
+name: Build Hentai Zone
+
+on:
+  push:
+    branches:
+      - hentai-zone-dev
+    paths:
+      - "src/it/hentaizone/**"
+      - ".github/workflows/build-hentai-zone.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Checkout Keiyoushi build system
+        uses: actions/checkout@v4
+        with:
+          repository: keiyoushi/extensions-source
+          ref: main
+          path: keiyoushi
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Add Hentai Zone module to Keiyoushi build
+        run: |
+          mkdir -p keiyoushi/src/it
+          cp -R src/it/hentaizone keiyoushi/src/it/hentaizone
+
+      - name: Build release APK and JAR
+        working-directory: keiyoushi
+        run: ./gradlew :src:it:hentaizone:assembleRelease
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: hentai-zone-build
+          path: |
+            keiyoushi/src/it/hentaizone/build/outputs/apk/**/*.apk
+            keiyoushi/src/it/hentaizone/build/libs/**/*.jar
+          if-no-files-found: error
