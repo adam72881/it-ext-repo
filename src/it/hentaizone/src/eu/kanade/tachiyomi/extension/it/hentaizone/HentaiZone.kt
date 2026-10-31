@@ -41,7 +41,7 @@ abstract class HentaiZone : KeiSource() {
         } else {
             "$baseUrl/hentai-manga/page/$page/"
         }
-        return parseListing(client.get(url).asJsoup())
+        return parseListing(client.get(url).asJsoup(), page)
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage = getPopularManga(page)
@@ -56,7 +56,7 @@ abstract class HentaiZone : KeiSource() {
             .addQueryParameter("post_type", "post")
             .addQueryParameter("paged", page.toString())
             .build()
-        return parseListing(client.get(url).asJsoup())
+        return parseListing(client.get(url).asJsoup(), page)
     }
 
     override suspend fun fetchMangaUpdate(
@@ -105,20 +105,19 @@ abstract class HentaiZone : KeiSource() {
             )
         }
 
-        val imageSelectors = listOf(
-            "#reader img", ".reader img", ".reading-content img", ".chapter-content img",
-            ".entry-content img", ".comic-reader img", ".pages img", ".gallery img",
-            "[class*=reader] img", "[id*=reader] img",
-        )
-        val pageImages = imageSelectors
-            .flatMap { selector -> doc.select(selector) }
-            .mapNotNull { image ->
-                listOf("data-src", "data-lazy-src", "data-original", "data-full-url", "src")
-                    .asSequence()
-                    .map { image.absUrl(it) }
-                    .firstOrNull { it.startsWith("https://") || it.startsWith("http://") }
+        var pageImages = extractPageImages(doc)
+
+        // Some reader templates place the actual page images in a same-site iframe.
+        if (pageImages.isEmpty()) {
+            val readerFrame = doc.select("iframe[src]")
+                .map { it.absUrl("src") }
+                .firstOrNull { it.startsWith(baseUrl) }
+            if (readerFrame != null) {
+                pageImages = runCatching {
+                    extractPageImages(client.get(readerFrame).asJsoup())
+                }.getOrDefault(emptyList())
             }
-            .distinct()
+        }
 
         if (pageImages.isNotEmpty()) {
             return pageImages.mapIndexed { index, image -> Page(index, imageUrl = image) }
@@ -162,7 +161,24 @@ abstract class HentaiZone : KeiSource() {
     override fun getChapterUrl(chapter: SChapter): String =
         if (chapter.url.startsWith("http")) chapter.url else "$baseUrl${chapter.url}"
 
-    private fun parseListing(doc: Document): MangasPage {
+    private fun extractPageImages(doc: Document): List<String> {
+        val imageSelectors = listOf(
+            "#reader img", ".reader img", ".reading-content img", ".chapter-content img",
+            ".entry-content img", ".comic-reader img", ".pages img", ".gallery img",
+            "[class*=reader] img", "[id*=reader] img",
+        )
+        return imageSelectors
+            .flatMap { selector -> doc.select(selector) }
+            .mapNotNull { image ->
+                listOf("data-src", "data-lazy-src", "data-original", "data-full-url", "src")
+                    .asSequence()
+                    .map { image.absUrl(it) }
+                    .firstOrNull { it.startsWith("https://") || it.startsWith("http://") }
+            }
+            .distinct()
+    }
+
+    private fun parseListing(doc: Document, page: Int): MangasPage {
         val cards = doc.select("article, .post, .manga-item, .item")
         val mangas = cards.mapNotNull { card ->
             mangaFromElement(doc, card)?.takeUnless { isBlocked(card.text()) }
@@ -171,7 +187,12 @@ abstract class HentaiZone : KeiSource() {
         val hasNext = doc.selectFirst(
             "a.next, a.next.page-numbers, .pagination a.next, a[rel=next], " +
                 ".nav-links a.next, .page-numbers.next",
-        ) != null
+        ) != null || doc.select("a[href*='/page/'], a[href*='paged=']").any { link ->
+            val href = link.absUrl("href")
+            val linkedPage = Regex("""/page/(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
+                ?: Regex("""[?&]paged=(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
+            linkedPage != null && linkedPage > page
+        }
 
         return MangasPage(mangas, hasNext)
     }
