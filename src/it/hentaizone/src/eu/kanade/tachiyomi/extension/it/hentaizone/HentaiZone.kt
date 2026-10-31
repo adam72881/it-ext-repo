@@ -150,9 +150,7 @@ abstract class HentaiZone : KeiSource() {
 
         val hasNext = doc.selectFirst(
             "a.next, .pagination a.next, a[rel=next], .nav-links a.next",
-        ) != null || doc.select("a[href*='/page/']").any {
-            it.text().matches(Regex("(?i)next|successiva|»|›"))
-        }
+        ) != null || doc.select("a[href*='/page/']").isNotEmpty()
 
         return MangasPage(mangas, hasNext)
     }
@@ -202,7 +200,7 @@ abstract class HentaiZone : KeiSource() {
             SChapter.create().apply {
                 name = title
                 url = href.removePrefix(baseUrl)
-                chapter_number = Regex("""(?i)(?:cap(?:itolo)?\\.?\\s*)([0-9]+(?:[.,][0-9]+)?)""")
+                chapter_number = Regex("""(?i)(?:cap(?:itolo)?\.?\s*)([0-9]+(?:[.,][0-9]+)?)""")
                     .find(title)?.groupValues?.get(1)?.replace(',', '.')?.toFloatOrNull() ?: -1f
             }
         }.distinctBy { it.url }
