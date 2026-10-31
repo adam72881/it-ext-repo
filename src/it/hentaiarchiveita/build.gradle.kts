@@ -6,14 +6,14 @@ plugins {
 
 keiyoushi {
     name = "Hentai Archive"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
 
     source {
         name = "Hentai Archive"
         lang = "it"
-        baseUrl = "https://www.hentai-archive.com"
+        baseUrl = "https://membri.premium-archive.com"
     }
 
     deeplink {

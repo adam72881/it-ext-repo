@@ -1,38 +1,48 @@
-# Hentai Archive — sorgente
+# Hentai Archive (Premium) — sorgente
 
 Modulo Keiyoushi per Mihon/Tachimanga.
 
-- Sito: https://www.hentai-archive.com/
+- Sito: https://membri.premium-archive.com/ (l'area membri di Hentai Archive)
 - Lingua: italiano
 - Libreria: KeiSource / libVersion 1.6
 - Pacchetto: eu.kanade.tachiyomi.extension.it.hentaiarchiveita
 
-Keiyoushi ha già una sua estensione "HentaiArchive" (pacchetto `…it.hentaiarchive`), molto più semplice: questa usa un pacchetto diverso, così le due non vanno in conflitto.
+Keiyoushi ha già una sua estensione "HentaiArchive" (pacchetto `…it.hentaiarchive`) per il sito gratuito: questa usa un pacchetto diverso, così le due non vanno in conflitto.
+
+## Accesso
+
+Dalla versione 1.6.3 l'estensione usa solo l'area membri. Il catalogo si sfoglia senza account, ma le pagine di ogni titolo si vedono solo con un abbonamento attivo:
+
+1. apri un titolo e tocca l'icona del mappamondo (WebView);
+2. tocca «Accedi con Patreon» (o «Accedi» con l'account del sito) e completa il login;
+3. torna indietro e apri il capitolo.
+
+L'app condivide i cookie della WebView con la sorgente. La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso funziona subito. Se l'accesso manca, o l'abbonamento non è attivo, l'errore lo dice. Nessun controllo del sito viene aggirato.
+
+Il formato delle pagine per gli abbonati non è stato verificato senza un account: l'estensione cerca le immagini nelle gallerie (`script.sgb-data`, `[data-images]`) e poi nel contenuto dell'articolo.
 
 ## Da dove arrivano i dati
 
-Il sito ha l'API REST di WordPress disattivata, quindi l'estensione legge le pagine HTML pubbliche.
-
 | Schermata | Fonte |
 |---|---|
-| Popolari | archivio della categoria ordinato per numero di commenti (`?orderby=comment_count`) |
-| Recenti | archivio della categoria per data |
-| Ricerca | ricerca del sito limitata ai manga (`category_name`), senza video |
-| Dettagli | pagina del titolo: categorie, data e copertina dai dati strutturati (JSON-LD) |
-| Lettura | le immagini dentro l'articolo, servite da una CDN che vuole il sito come Referer |
+| Popolari | API REST, ordine casuale nuovo a ogni apertura (il sito non ha dati di popolarità) |
+| Recenti | API REST per data |
+| Ricerca e filtri | API REST: ordine, sezione, tag inclusi (AND) o esclusi |
+| Dettagli | API REST con categorie e tag |
+| Lettura | pagina dell'articolo, con l'accesso dell'abbonato |
 
-Gli archivi hanno 9 titoli per pagina: ogni pagina dell'app ne legge due.
+Video e giochi non hanno pagine da leggere e sono esclusi.
 
 ## Filtri
 
-- **Ordina per**: Popolari (più commentati), Data di uscita, Titolo, Casuale. Crescente o decrescente.
-- **Sezione**: Tutti i manga, Doujinshi, Fumetti porno, Fumetti porno 3D, Volumi.
-- **Categoria**: una delle 73 categorie del sito. Il sito non permette di combinarle: più categorie insieme vengono ridotte a una. Se scegli una categoria, vale quella invece della sezione.
+- **Ordina per**: Casuale, Data di uscita, Ultimo aggiornamento, Titolo, Pertinenza (con una ricerca testuale).
+- **Sezione**: Tutto, Hentai manga, Fumetti porno.
+- **Tag**: quelli del sito con almeno 3 titoli. L'elenco viene scaricato dal sito; al primo avvio compare dopo aver toccato "Reimposta".
 
 ## Capitoli delle serie
 
-Il sito non collega i capitoli di una serie: sono articoli separati con lo stesso titolo base e un segno finale ("Titolo 2", "Titolo [Parte 1]", "Titolo – Prima Parte"), a volte con lo stesso identico titolo e un "-2" nell'indirizzo. Aprendo un titolo, l'estensione cerca il titolo base (due pagine di risultati) e mostra come capitoli gli articoli con la stessa base (`SeriesTitle.kt`).
+Il sito non collega i capitoli di una serie: l'estensione li riconosce dal titolo ("Titolo 2", "[Parte 1]", "Prima Parte"…) e dall'indirizzo ("-2"), cercando il titolo base (`SeriesTitle.kt`).
 
 ## Contenuti esclusi
 
-Solo i contenuti che indicano esplicitamente bambini o preadolescenti: la categoria Sailor Moon (protagoniste alle medie) e i titoli con loli, shota, preteen, underage, minorenne, bambina/bambino, elementari. I video non hanno pagine da leggere e sono esclusi.
+Solo i titoli che indicano esplicitamente bambini o preadolescenti (loli, shota, preteen, underage, minorenne, bambina/bambino, elementari).

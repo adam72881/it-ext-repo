@@ -1,5 +1,11 @@
 # Novità
 
+## Hentai Archive 1.6.3
+
+- Ora usa l'area membri di Hentai Archive (membri.premium-archive.com): oltre 5.000 manga e fumetti. Il catalogo si sfoglia senza account; per leggere serve un abbonamento, con l'accesso dalla WebView (Patreon o account del sito).
+- Popolari in ordine casuale, Recenti per data, filtri per sezione e tag.
+- Capitoli delle serie riconosciuti dal titolo.
+
 ## Hentai Archive 1.6.2
 
 - Aprendo un titolo che fa parte di una serie compaiono tutti i suoi capitoli ("Titolo 2", "[Parte 1]", "Prima Parte"…), riconosciuti dal titolo perché il sito non li collega; quelli nuovi arrivano con l'aggiornamento della libreria.
