@@ -1,5 +1,10 @@
 # Novità
 
+## Icone e struttura (Hentai Zone 1.6.8, Hentai ITA 1.6.8, Hentai Archive 1.6.4)
+
+- Ogni estensione ha il suo logo come icona, su sfondo bianco così è leggibile sia su tema chiaro che scuro (prima Hentai Zone usava l'icona generica di Keiyoushi).
+- Struttura dei file secondo le convenzioni di Keiyoushi: icone in `res/mipmap-*`, file `Dto.kt` e `Filters.kt` senza ripetere il nome. Pronte per una Pull Request verso il repo ufficiale.
+
 ## Hentai Archive 1.6.3
 
 - Ora usa l'area membri di Hentai Archive (membri.premium-archive.com): oltre 5.000 manga e fumetti. Il catalogo si sfoglia senza account; per leggere serve un abbonamento, con l'accesso dalla WebView (Patreon o account del sito).
