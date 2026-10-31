@@ -45,8 +45,10 @@ abstract class HentaiZone : KeiSource() {
         val category = filters.filterIsInstance<CategoryFilter>().firstOrNull()?.state.orEmpty().trim()
         val url = baseUrl.toHttpUrl().newBuilder()
             .addPathSegments(if (page <= 1) "hentai-manga" else "hentai-manga/page/$page")
-            .addQueryParameter("orderby", if (latest) "date" else "popular")
-            .apply { if (category.isNotBlank()) addQueryParameter("category_name", category) }
+            .apply {
+                if (latest) addQueryParameter("orderby", "date")
+                if (category.isNotBlank()) addQueryParameter("category_name", category)
+            }
             .build()
         return parseListing(client.get(url).asJsoup(), page)
     }
