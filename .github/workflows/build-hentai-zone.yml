@@ -45,7 +45,7 @@ jobs:
 
       - name: Build release APK and JAR
         working-directory: keiyoushi
-        run: ./gradlew :src:it:hentaizone:assembleRelease
+        run: ./gradlew spotlessApply :src:it:hentaizone:assembleRelease
 
       - name: Upload build outputs
         uses: actions/upload-artifact@v4
