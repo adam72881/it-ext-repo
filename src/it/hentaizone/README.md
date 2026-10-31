@@ -5,6 +5,7 @@ Modulo Keiyoushi per Mihon/Tachimanga, separato da Hentai ITA.
 - Sito: https://hentaizone.me/
 - Catalogo free: https://hentaizone.me/hentai-manga/
 - Login ufficiale: https://hentaizone.me/wp-login.php
+- Paginazione catalogo verificata: `/hentai-manga/page/2/` e archivio fino a pagina 220.
 - Lingua: italiano
 - Libreria: KeiSource / libVersion 1.6
 - Pacchetto previsto: eu.kanade.tachiyomi.extension.it.hentaizone
