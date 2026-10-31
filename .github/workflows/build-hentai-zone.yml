@@ -66,7 +66,7 @@ jobs:
           path: distribution
           persist-credentials: true
 
-      - name: Publish APK and update extension index
+      - name: Publish APK and update extension indexes
         env:
           APK_SOURCE_DIR: keiyoushi/src/it/hentaizone/build/outputs/apk
         run: |
@@ -77,6 +77,7 @@ jobs:
           APK_NAME="tachiyomi-it.hentaizone-v1.6.2.apk"
           cp "$APK" "distribution/apk/$APK_NAME"
           python3 - <<'PY'
+          import gzip
           import json
           from pathlib import Path
 
@@ -101,11 +102,13 @@ jobs:
               }]
           })
           entries.sort(key=lambda entry: (entry.get("lang", ""), entry.get("name", "")))
-          index_path.write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+          index_bytes = (json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\\n").encode("utf-8")
+          index_path.write_bytes(index_bytes)
+          Path("distribution/index.pb").write_bytes(gzip.compress(index_bytes, mtime=0))
           PY
           cd distribution
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apk/"$APK_NAME" index.min.json
+          git add apk/"$APK_NAME" index.min.json index.pb
           git commit -m "Publish Hentai Zone extension"
           git push origin repo
