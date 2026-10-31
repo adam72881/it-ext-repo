@@ -22,13 +22,13 @@ Il codice sorgente di Hentai ITA non è presente in questo repository: sono disp
 
 - Catalogo WordPress su `/hentai-manga/`, con paginazione.
 - Ricerca WordPress tramite `s`, `post_type` e `paged`.
-- Le pagine Hentai Zone con galleria usano `.fg_thumbnail a[href]` come collegamenti alle immagini.
+- Il catalogo usa card WordPress/Elementor; il lettore estrae le immagini del plugin GFFolder da `.gff-item img` e dagli URL `/wp-content/uploads/gffolder-cache/`.
 - I post senza un elenco di capitoli sono trattati come letture singole.
 - Le pagine premium non vengono sbloccate né aggirate.
 
 ## Login
 
-La WebView apre `/wp-login.php`. La condivisione dei cookie WebView → OkHttp non è stata verificata: il login non va considerato funzionante finché non viene provato in Mihon.
+La sorgente si apre sul catalogo gratuito. Il login ufficiale è disponibile dal sito tramite `/wp-login.php`; la condivisione dei cookie WebView → OkHttp non è stata verificata, quindi il login non va considerato funzionante finché non viene provato in Mihon.
 
 ## Filtri
 
