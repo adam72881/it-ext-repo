@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.it.hentaizone
 
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -24,8 +25,8 @@ import java.io.IOException
 @Source
 abstract class HentaiZone : KeiSource() {
 
-    // The site exposes a catalogue but no independently verified latest feed.
-    override val supportsLatest = false
+    // Latest uses the WordPress date ordering; Popular keeps the site's catalogue order.
+    override val supportsLatest = true
 
     // Open the free catalogue first. The site's own login remains reachable at /wp-login.php.
     override fun getHomeUrl(): String = "$baseUrl/hentai-manga/"
@@ -34,26 +35,41 @@ abstract class HentaiZone : KeiSource() {
         pattern = """(?i)(^|[^a-z])(loli|lolicon|shota|shotacon|underage|minor|minorenne|teen|schoolgirl|schoolboy|bambina|bambino)([^a-z]|$)""",
     )
 
-    override suspend fun getPopularManga(page: Int): MangasPage {
-        val url = if (page <= 1) {
-            "$baseUrl/hentai-manga/"
-        } else {
-            "$baseUrl/hentai-manga/page/$page/"
-        }
+    override suspend fun getPopularManga(page: Int): MangasPage =
+        fetchArchive(page, emptyList(), latest = false)
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage =
+        fetchArchive(page, emptyList(), latest = true)
+
+    private suspend fun fetchArchive(page: Int, filters: FilterList, latest: Boolean): MangasPage {
+        val category = filters.filterIsInstance<CategoryFilter>().firstOrNull()?.state.orEmpty().trim()
+        val url = baseUrl.toHttpUrl().newBuilder()
+            .addPathSegments(if (page <= 1) "hentai-manga" else "hentai-manga/page/$page")
+            .addQueryParameter("orderby", if (latest) "date" else "popular")
+            .apply { if (category.isNotBlank()) addQueryParameter("category_name", category) }
+            .build()
         return parseListing(client.get(url).asJsoup(), page)
     }
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage = getPopularManga(page)
+    override fun getFilterList(): FilterList = FilterList(
+        Filter.Header("La categoria va inserita come slug WordPress (es. nome-categoria)."),
+        CategoryFilter(),
+        Filter.Select("Ordina per", arrayOf("Popolari", "Più recenti"), 0),
+    )
 
     override suspend fun getSearchMangaList(
         page: Int,
         query: String,
         filters: FilterList,
     ): MangasPage {
+        val category = filters.filterIsInstance<CategoryFilter>().firstOrNull()?.state.orEmpty().trim()
+        val order = filters.filterIsInstance<Filter.Select>().firstOrNull()?.state ?: 0
         val url = baseUrl.toHttpUrl().newBuilder()
             .addQueryParameter("s", query)
             .addQueryParameter("post_type", "post")
             .addQueryParameter("paged", page.toString())
+            .addQueryParameter("orderby", if (order == 1) "date" else "popular")
+            .apply { if (category.isNotBlank()) addQueryParameter("category_name", category) }
             .build()
         return parseListing(client.get(url).asJsoup(), page)
     }
@@ -280,6 +296,8 @@ abstract class HentaiZone : KeiSource() {
     private fun isLoginPage(doc: Document): Boolean =
         doc.selectFirst("form#loginform, form[action*='wp-login.php']") != null ||
             doc.selectFirst("form[action*=login], input[type=password]") != null
+
+    private class CategoryFilter : Filter.Text("Categoria (slug)")
 
     private fun isBlocked(text: String): Boolean = blockedLabels.containsMatchIn(text)
 }
