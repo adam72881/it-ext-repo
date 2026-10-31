@@ -8,6 +8,7 @@ enum class SortMode(val label: String, val apiOrderBy: String?) {
     MODIFIED("Ultimo aggiornamento", "modified"),
     TITLE("Titolo", "title"),
     RELEVANCE("Pertinenza (con testo)", "relevance"),
+    PAGES("Più pagine", null),
 }
 
 class SortFilter(selection: Filter.Sort.Selection = Filter.Sort.Selection(0, false)) :
@@ -31,6 +32,21 @@ enum class Access(val label: String) {
 class AccessFilter : Filter.Select<String>("Accesso", Access.entries.map { it.label }.toTypedArray()) {
     val access: Access get() = Access.entries[state]
 }
+
+class MinPages(val label: String, val pages: Int)
+
+class MinPagesFilter : Filter.Select<String>("Pagine minime", MIN_PAGES.map { it.label }.toTypedArray()) {
+    val pages: Int get() = MIN_PAGES[state].pages
+}
+
+val MIN_PAGES = listOf(
+    MinPages("Qualsiasi", 0),
+    MinPages("20+", 20),
+    MinPages("40+", 40),
+    MinPages("60+", 60),
+    MinPages("100+", 100),
+    MinPages("200+", 200),
+)
 
 class TermOption(name: String, val id: Int, val slug: String) : Filter.TriState(name)
 

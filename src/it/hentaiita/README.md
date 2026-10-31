@@ -13,14 +13,14 @@ Tutte le liste usano l'API REST di WordPress (`/wp-json/wp/v2/posts`). Sul sito 
 
 | Schermata | Contenuto |
 |---|---|
-| Popolari | Il sito non espone dati di popolarità: i commenti sono chiusi e non c'è un contatore di visite. Mostra prima i titoli "best" scelti dal sito, poi il resto del catalogo dal più recente, senza ripetizioni. |
+| Popolari | Il sito non espone dati di popolarità: i commenti sono chiusi e non c'è un contatore di visite. Ordine casuale, nuovo ogni volta che si apre la scheda; scorrendo non si ripetono titoli. |
 | Recenti | Fumetti dal più recente. Giochi, video e doppioni "-mobile" esclusi; prima erano i giochi ripubblicati a riempire questa pagina. |
 | Ricerca e filtri | Ordine, sezione e categorie incluse o escluse. |
 | Lettura | L'elenco completo delle pagine dal JSON della galleria (`script.sgb-data`), servito pubblicamente nella pagina del titolo. |
 
 ## Filtri
 
-- **Ordina per**: Consigliati dal sito e poi recenti, Data di uscita, Ultimo aggiornamento, Titolo, Pertinenza (con una ricerca testuale).
+- **Ordina per**: Casuale, Consigliati dal sito (i titoli "best") e poi recenti, Data di uscita, Ultimo aggiornamento, Titolo, Pertinenza (con una ricerca testuale).
 - **Sezione**: Tutti i fumetti, Manga hentai, Fumetti porno, Doujinshi, 3D porn comics.
 - **Categorie**: tutte quelle del sito con almeno 2 titoli. Tocca una volta per includere, due volte per escludere; più categorie incluse si combinano in AND. L'elenco viene scaricato dal sito e tenuto in cache per 3 giorni. Al primo avvio compare dopo aver toccato "Reimposta".
 

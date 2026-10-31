@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.extension.it.hentaiita
 import eu.kanade.tachiyomi.source.model.Filter
 
 enum class SortMode(val label: String, val apiOrderBy: String) {
+    RANDOM("Casuale", "date"),
     BEST("Consigliati dal sito, poi recenti", "date"),
     DATE("Data di uscita", "date"),
     MODIFIED("Ultimo aggiornamento", "modified"),

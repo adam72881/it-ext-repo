@@ -28,6 +28,7 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -35,8 +36,7 @@ import kotlin.time.Duration.Companion.seconds
  * categories work as tags (AND inclusion and exclusion are supported).
  *
  * The site exposes no popularity data (comments are closed, no view counter),
- * so "Popolari" shows the site's own "best" picks first and then the rest of the
- * catalogue by date.
+ * so "Popolari" is a random order, new every time the list is opened.
  */
 @Source
 abstract class HentaiIta : KeiSource() {
@@ -46,7 +46,7 @@ abstract class HentaiIta : KeiSource() {
 
     override fun getHomeUrl(): String = "$baseUrl/it/"
 
-    override suspend fun getPopularManga(page: Int): MangasPage = bestThenLatest(page, Query())
+    override suspend fun getPopularManga(page: Int): MangasPage = randomListing(page, Query())
 
     override suspend fun getLatestUpdates(page: Int): MangasPage = apiListing(page, Query(sort = SortMode.DATE))
 
@@ -55,13 +55,17 @@ abstract class HentaiIta : KeiSource() {
         val categories = filters.firstInstanceOrNull<CategoryGroup>()?.state.orEmpty()
         val search = Query(
             text = query.trim(),
-            sort = sort?.mode ?: SortMode.BEST,
+            sort = sort?.mode ?: SortMode.RANDOM,
             ascending = sort?.ascending ?: false,
             section = filters.firstInstanceOrNull<SectionFilter>()?.section ?: SECTIONS[0],
             included = categories.filter { it.state == Filter.TriState.STATE_INCLUDE }.map { it.id },
             excluded = categories.filter { it.state == Filter.TriState.STATE_EXCLUDE }.map { it.id },
         )
-        return if (search.sort == SortMode.BEST) bestThenLatest(page, search) else apiListing(page, search)
+        return when (search.sort) {
+            SortMode.RANDOM -> randomListing(page, search)
+            SortMode.BEST -> bestThenLatest(page, search)
+            else -> apiListing(page, search)
+        }
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -69,6 +73,27 @@ abstract class HentaiIta : KeiSource() {
         val slug = url.pathSegments.lastOrNull { it.isNotEmpty() } ?: return null
         val post = fetchPost(slug) ?: return null
         return post.takeIf { isAllowed(it.classList, it.plainTitle) }?.toSManga()
+    }
+
+    // The REST API has no random order: shuffle the order of the result pages
+    // and the entries inside each page. Opening the list again (page 1) draws a
+    // new order; later pages keep it, so scrolling never repeats an entry.
+    @Volatile
+    private var randomSeed = 0L
+
+    private suspend fun randomListing(page: Int, query: Query): MangasPage {
+        if (page == 1) randomSeed = Random.nextLong()
+        val seed = randomSeed
+        val ordered = query.copy(sort = SortMode.DATE)
+        val total = client.get(postsUrl(ordered, page = 1, perPage = 1), Fetch.XHR).use { response ->
+            response.header("X-WP-Total")?.toIntOrNull() ?: 0
+        }
+        val totalPages = (total + PAGE_SIZE - 1) / PAGE_SIZE
+        if (page > totalPages) return MangasPage(emptyList(), false)
+
+        val sitePage = (1..totalPages).shuffled(Random(seed))[page - 1]
+        val result = apiListing(sitePage, ordered)
+        return MangasPage(result.mangas.shuffled(Random(seed + page)), page < totalPages)
     }
 
     // The "best" pages come first; once they run out, paging continues with
@@ -224,7 +249,7 @@ abstract class HentaiIta : KeiSource() {
                     )
                 }
                 add(Filter.Separator())
-                add(Filter.Header("Il sito non ha dati di popolarità: «Consigliati» sono i titoli scelti dal sito. I contenuti con minori sono sempre esclusi."))
+                add(Filter.Header("Il sito non ha dati di popolarità: Popolari è in ordine casuale, nuovo a ogni apertura. «Consigliati» sono i titoli scelti dal sito. I contenuti con minori sono sempre esclusi."))
             },
         )
     }
@@ -234,7 +259,7 @@ abstract class HentaiIta : KeiSource() {
 
     private data class Query(
         val text: String = "",
-        val sort: SortMode = SortMode.BEST,
+        val sort: SortMode = SortMode.RANDOM,
         val ascending: Boolean = false,
         val section: Section = SECTIONS[0],
         val included: List<Int> = emptyList(),
