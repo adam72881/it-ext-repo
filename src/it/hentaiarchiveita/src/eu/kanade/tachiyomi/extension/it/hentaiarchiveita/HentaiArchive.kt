@@ -59,7 +59,24 @@ abstract class HentaiArchive : KeiSource() {
             includedTags = tags.filter { it.state == Filter.TriState.STATE_INCLUDE }.map { it.id },
             excludedTags = tags.filter { it.state == Filter.TriState.STATE_EXCLUDE }.map { it.id },
         )
+        // A tapped genre arrives as a plain query with no tag filters: browse that tag.
+        if (search.text.isNotEmpty() && tags.all { it.state == Filter.TriState.STATE_IGNORE }) {
+            resolveTag(search.text)?.let { id ->
+                return apiListing(page, Query(sort = SortMode.DATE, section = SECTIONS[0], includedTags = listOf(id)))
+            }
+        }
         return if (search.sort == SortMode.RANDOM) randomListing(page, search) else apiListing(page, search)
+    }
+
+    // Resolves a tag name (as shown on a chip) to its id.
+    private suspend fun resolveTag(name: String): Int? {
+        val url = "$baseUrl/wp-json/wp/v2/tags".toHttpUrl().newBuilder()
+            .addQueryParameter("search", name)
+            .addQueryParameter("per_page", "20")
+            .addQueryParameter("_fields", "id,slug,name")
+            .build()
+        return client.get(url, Fetch.XHR).parseAs<List<TermDto>>()
+            .firstOrNull { it.plainName.equals(name, ignoreCase = true) }?.id
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {

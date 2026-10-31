@@ -61,11 +61,28 @@ abstract class HentaiIta : KeiSource() {
             included = categories.filter { it.state == Filter.TriState.STATE_INCLUDE }.map { it.id },
             excluded = categories.filter { it.state == Filter.TriState.STATE_EXCLUDE }.map { it.id },
         )
+        // A tapped genre arrives as a plain query with no category filters: browse it.
+        if (search.text.isNotEmpty() && categories.all { it.state == Filter.TriState.STATE_IGNORE }) {
+            resolveCategory(search.text)?.let { id ->
+                return apiListing(page, Query(sort = SortMode.DATE, section = SECTIONS[0], included = listOf(id)))
+            }
+        }
         return when (search.sort) {
             SortMode.RANDOM -> randomListing(page, search)
             SortMode.BEST -> bestThenLatest(page, search)
             else -> apiListing(page, search)
         }
+    }
+
+    // Resolves a category name (as shown on a chip) to its id.
+    private suspend fun resolveCategory(name: String): Int? {
+        val url = "$baseUrl/wp-json/wp/v2/categories".toHttpUrl().newBuilder()
+            .addQueryParameter("search", name)
+            .addQueryParameter("per_page", "20")
+            .addQueryParameter("_fields", "id,slug,name")
+            .build()
+        return client.get(url, Fetch.XHR).parseAs<List<TermDto>>()
+            .firstOrNull { it.plainName.equals(name, ignoreCase = true) }?.id
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -155,6 +172,8 @@ abstract class HentaiIta : KeiSource() {
             throw IOException("Questo titolo è escluso dall'estensione.")
         }
         val series = seriesChapters(post, manga.url)
+        val pageDoc = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
+        val pageCount = galleryImages(pageDoc).ifEmpty { contentImages(pageDoc) }.count { PREMIUM_PATH !in it }
 
         manga.apply {
             title = post.plainTitle
@@ -162,7 +181,10 @@ abstract class HentaiIta : KeiSource() {
             genre = post.terms
                 .filter { it.slug !in HIDDEN_GENRES }
                 .joinToString { it.plainName }
-            description = synopsis(post.contentText)
+            description = listOfNotNull(
+                pageCount.takeIf { it > 0 }?.let { "Pagine: $it" },
+                synopsis(post.contentText),
+            ).joinToString("\n\n").ifEmpty { null }
             status = SManga.COMPLETED
             // A series gets new chapters; a one-shot never changes.
             update_strategy = if (series.isEmpty()) UpdateStrategy.ONLY_FETCH_ONCE else UpdateStrategy.ALWAYS_UPDATE

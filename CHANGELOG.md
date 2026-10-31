@@ -1,5 +1,11 @@
 # Novità
 
+## Generi cliccabili e numero pagine (Hentai Zone 1.6.9, Hentai ITA 1.6.9, Hentai Archive 1.6.5)
+
+- Toccando una categoria/tag nei dettagli parte la ricerca per quel genere (prima faceva solo una ricerca per testo).
+- Nei dettagli compare il numero di pagine (es. "Pagine: 20") su Hentai Zone e Hentai ITA, quando le pagine sono pubbliche. Su Hentai Archive non è possibile senza l'accesso.
+- Download e descrizione verificati su Hentai Zone e Hentai ITA.
+
 ## Icone e struttura (Hentai Zone 1.6.8, Hentai ITA 1.6.8, Hentai Archive 1.6.4)
 
 - Ogni estensione ha il suo logo come icona, su sfondo bianco così è leggibile sia su tema chiaro che scuro (prima Hentai Zone usava l'icona generica di Keiyoushi).

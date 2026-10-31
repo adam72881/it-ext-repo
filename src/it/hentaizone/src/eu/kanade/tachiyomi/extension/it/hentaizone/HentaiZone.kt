@@ -69,7 +69,37 @@ abstract class HentaiZone : KeiSource() {
             includedTags = tags.filter { it.state == Filter.TriState.STATE_INCLUDE },
             excludedTags = tags.filter { it.state == Filter.TriState.STATE_EXCLUDE },
         )
+        // A tapped genre arrives as a plain query with no filters set: browse that term.
+        val noTermFilters = categories.all { it.state == Filter.TriState.STATE_IGNORE } &&
+            tags.all { it.state == Filter.TriState.STATE_IGNORE }
+        if (search.text.isNotEmpty() && noTermFilters) {
+            resolveTerm(search.text)?.let { (isTag, id) ->
+                val option = TermOption(search.text, id, "")
+                val genre = Query(
+                    sort = SortMode.DATE,
+                    section = SECTIONS.last(),
+                    includedCategories = if (isTag) emptyList() else listOf(option),
+                    includedTags = if (isTag) listOf(option) else emptyList(),
+                )
+                return apiListing(page, genre)
+            }
+        }
         return if (search.sort == SortMode.POPULAR) popularListing(page, search) else apiListing(page, search)
+    }
+
+    // Resolves a genre name (as shown on a chip) to its category or tag id.
+    private suspend fun resolveTerm(name: String): Pair<Boolean, Int>? {
+        for ((taxonomy, isTag) in listOf("categories" to false, "tags" to true)) {
+            val url = "$baseUrl/wp-json/wp/v2/$taxonomy".toHttpUrl().newBuilder()
+                .addQueryParameter("search", name)
+                .addQueryParameter("per_page", "20")
+                .addQueryParameter("_fields", "id,slug,name")
+                .build()
+            client.get(url, Fetch.XHR).parseAs<List<TermDto>>()
+                .firstOrNull { it.plainName.equals(name, ignoreCase = true) }
+                ?.let { return isTag to it.id }
+        }
+        return null
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -231,6 +261,7 @@ abstract class HentaiZone : KeiSource() {
         }
         val premium = "category-$PREMIUM_CATEGORY_SLUG" in post.classList
         val series = seriesChapters(page, post)
+        val pageCount = galleryImages(page).size
 
         manga.apply {
             title = post.plainTitle
@@ -239,6 +270,7 @@ abstract class HentaiZone : KeiSource() {
                 .filter { it.slug !in HIDDEN_GENRES }
                 .joinToString { it.plainName }
             description = listOfNotNull(
+                pageCount.takeIf { it > 0 }?.let { "Pagine: $it" },
                 post.contentText.takeIf { it.length >= MIN_DESCRIPTION },
                 PREMIUM_DESCRIPTION.takeIf { premium },
             ).joinToString("\n\n").ifEmpty { null }
@@ -259,6 +291,12 @@ abstract class HentaiZone : KeiSource() {
         }
         return SMangaUpdate(manga, chapters)
     }
+
+    private fun galleryImages(doc: Document): List<String> =
+        doc.select("div.gff-gallery[data-images]")
+            .flatMap { it.attr("data-images").parseAs<List<GalleryImageDto>>() }
+            .map { it.src.toHttpUrl().toString() }
+            .distinct()
 
     // Each chapter of a series is its own post; the post page lists them all.
     private fun seriesChapters(page: Document, post: PostDto): List<SChapter> {
@@ -289,10 +327,7 @@ abstract class HentaiZone : KeiSource() {
         // Never reuse a cached copy: after logging in, the same URL must be read again.
         val doc = client.get(getChapterUrl(chapter), Fetch.DOCUMENT, CacheControl.FORCE_NETWORK).asJsoup()
 
-        val images = doc.select("div.gff-gallery[data-images]")
-            .flatMap { it.attr("data-images").parseAs<List<GalleryImageDto>>() }
-            .map { it.src.toHttpUrl().toString() }
-            .distinct()
+        val images = galleryImages(doc)
         if (images.isNotEmpty()) {
             return images.mapIndexed { index, image -> Page(index, imageUrl = image) }
         }
