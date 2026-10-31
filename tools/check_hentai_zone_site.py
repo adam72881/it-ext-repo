@@ -23,7 +23,7 @@ def fail(message):
 # Latest and search: REST API with AND terms and exclusions.
 query = urlencode({
     "categories[terms]": "342", "categories[operator]": "AND",
-    "categories_exclude": "704,617,926", "tags_exclude": "63,504,515",
+    "categories_exclude": "920,617,926", "tags_exclude": "504,2000,2054",
     "per_page": 5, "orderby": "date", "order": "desc",
     "_embed": "wp:featuredmedia",
     "_fields": "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded",
@@ -32,7 +32,7 @@ headers, body = fetch(f"{BASE}/wp-json/wp/v2/posts?{query}")
 posts = json.loads(body)
 if not posts or not headers.get("X-WP-TotalPages"):
     fail("REST post listing is empty or not paginated")
-if any("category-teen" in p["class_list"] for p in posts):
+if any("category-premium" in p["class_list"] for p in posts):
     fail("REST category exclusion was ignored")
 if not all({"slug", "title", "class_list"} <= p.keys() for p in posts):
     fail("REST post fields changed")

@@ -40,13 +40,13 @@ La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso 
 
 ## Contenuti esclusi
 
-Sono sempre esclusi, sia nelle richieste al sito sia sulle schede ricevute:
+Sono esclusi solo i contenuti che indicano esplicitamente minori, sia nelle richieste al sito sia sulle schede ricevute:
 
-- categorie: Teen, tette piccole, My Hero Academia, Sailor Moon, Simpson, Griffin, American Dad;
-- tag: teen, teen titans, school girl, scuola, sesso a scuola, uniforme scolastica, liceale, student/studente/studenti/studentessa/studentesse, professoressa e studente, Fantagenitori;
-- titoli che contengono parole come loli, shota, teen, school, scuola, liceale, studentessa, ragazzina, bambina, sorellina.
+- tag: school girl, liceale, uniforme scolastica, Fantagenitori;
+- categorie di serie con personaggi canonicamente minorenni: My Hero Academia, Sailor Moon;
+- titoli che contengono loli, shota, preteen, underage, minorenne, bambina/bambino, liceale/liceali, elementari.
 
-Queste voci non compaiono neanche tra i filtri. L'esclusione si basa su come il sito etichetta le opere, quindi non può garantire che ogni opera con personaggi di età ambigua sia etichettata correttamente.
+Queste voci non compaiono tra i filtri e non si possono riattivare. La categoria Teen (18-19 anni) e i tag su università e studenti restano visibili; si possono escludere a mano dai filtri.
 
 Video (Video Hentai Sub Ita) e giochi non hanno pagine da leggere e sono esclusi.
 

@@ -313,7 +313,7 @@ abstract class HentaiZone : KeiSource() {
                     add(TagGroup(terms.tags.filter { it.count >= MIN_TAG_COUNT }.toOptions(BLOCKED_TAGS.values.toSet())))
                 }
                 add(Filter.Separator())
-                add(Filter.Header("Popolari = più commentati. I contenuti con minori o ambientazioni scolastiche sono sempre esclusi."))
+                add(Filter.Header("Popolari = più commentati. I contenuti con minori sono sempre esclusi."))
             },
         )
     }
