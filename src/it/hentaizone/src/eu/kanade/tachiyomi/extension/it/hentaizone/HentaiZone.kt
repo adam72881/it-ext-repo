@@ -7,73 +7,209 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
+import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
+import keiyoushi.utils.firstInstanceOrNull
+import keiyoushi.utils.parseAs
+import keiyoushi.utils.toJsonElement
+import keiyoushi.utils.tryParse
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.json.JsonElement
+import okhttp3.CacheControl
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
+import kotlin.time.Duration.Companion.seconds
 
 /**
- * Catalogue adapter for the public HentaiZone.me pages.
+ * Hentai Zone is a WordPress site. Lists come from the WordPress REST API, which
+ * supports AND/exclusion on categories and tags; "Popolari" comes from the HTML
+ * archive ordered by comment count, the only popularity signal the site exposes.
  *
- * The site login can be opened in Mihon's WebView. Session sharing is not
- * assumed here; access is only granted when the site serves the requested pages.
+ * Premium posts are served by the site only to a logged-in Patreon subscriber.
+ * The app shares the WebView cookies with this source, so logging in through
+ * the WebView is enough; nothing here bypasses the site's own access check.
  */
 @Source
 abstract class HentaiZone : KeiSource() {
 
-    // Latest uses the WordPress date ordering; Popular keeps the site's catalogue order.
-    override val supportsLatest = true
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder =
+        rateLimit(permits = 2, period = 1.seconds)
 
-    // Open the free catalogue first. The site's own login remains reachable at /wp-login.php.
     override fun getHomeUrl(): String = "$baseUrl/hentai-manga/"
 
-    private val blockedLabels = Regex(
-        pattern = """(?i)(^|[^a-z])(loli|lolicon|shota|shotacon|underage|minor|minorenne|teen|schoolgirl|schoolboy|bambina|bambino)([^a-z]|$)""",
-    )
+    override suspend fun getPopularManga(page: Int): MangasPage = popularListing(page, Query())
 
-    override suspend fun getPopularManga(page: Int): MangasPage =
-        fetchArchive(page, emptyList(), latest = false)
+    override suspend fun getLatestUpdates(page: Int): MangasPage = apiListing(page, Query(sort = SortMode.DATE))
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage =
-        fetchArchive(page, emptyList(), latest = true)
-
-    private suspend fun fetchArchive(page: Int, filters: FilterList, latest: Boolean): MangasPage {
-        val category = filters.filterIsInstance<CategoryFilter>().firstOrNull()?.state.orEmpty().trim()
-        val url = baseUrl.toHttpUrl().newBuilder()
-            .addPathSegments(if (page <= 1) "hentai-manga" else "hentai-manga/page/$page")
-            .apply {
-                if (latest) addQueryParameter("orderby", "date")
-                if (category.isNotBlank()) addQueryParameter("category_name", category)
-            }
-            .build()
-        return parseListing(client.get(url).asJsoup(), page)
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
+        val sort = filters.firstInstanceOrNull<SortFilter>()
+        val categories = filters.firstInstanceOrNull<CategoryGroup>()?.state.orEmpty()
+        val tags = filters.firstInstanceOrNull<TagGroup>()?.state.orEmpty()
+        val search = Query(
+            text = query.trim(),
+            sort = sort?.mode ?: SortMode.POPULAR,
+            ascending = sort?.ascending ?: false,
+            section = filters.firstInstanceOrNull<SectionFilter>()?.section ?: SECTIONS[0],
+            access = filters.firstInstanceOrNull<AccessFilter>()?.access ?: Access.ALL,
+            includedCategories = categories.filter { it.state == Filter.TriState.STATE_INCLUDE },
+            excludedCategories = categories.filter { it.state == Filter.TriState.STATE_EXCLUDE },
+            includedTags = tags.filter { it.state == Filter.TriState.STATE_INCLUDE },
+            excludedTags = tags.filter { it.state == Filter.TriState.STATE_EXCLUDE },
+        )
+        return if (search.sort == SortMode.POPULAR) popularListing(page, search) else apiListing(page, search)
     }
 
-    override fun getFilterList(): FilterList = FilterList(
-        Filter.Header("La categoria va inserita come slug WordPress (es. nome-categoria)."),
-        CategoryFilter(),
-        Filter.Select("Ordina per", arrayOf("Popolari", "Più recenti"), 0),
-    )
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host != baseUrl.toHttpUrl().host) return null
+        val slug = url.pathSegments.singleOrNull { it.isNotEmpty() } ?: return null
+        val post = fetchPost(slug) ?: return null
+        return post.takeIf { isAllowed(it.classList, it.plainTitle) }?.toSManga()
+    }
 
-    override suspend fun getSearchMangaList(
-        page: Int,
-        query: String,
-        filters: FilterList,
-    ): MangasPage {
-        val category = filters.filterIsInstance<CategoryFilter>().firstOrNull()?.state.orEmpty().trim()
-        val order = filters.filterIsInstance<Filter.Select>().firstOrNull()?.state ?: 0
-        val url = baseUrl.toHttpUrl().newBuilder()
-            .addQueryParameter("s", query)
-            .addQueryParameter("post_type", "post")
-            .addQueryParameter("paged", page.toString())
-            .addQueryParameter("orderby", if (order == 1) "date" else "popular")
-            .apply { if (category.isNotBlank()) addQueryParameter("category_name", category) }
+    private suspend fun apiListing(page: Int, query: Query): MangasPage {
+        val includedCategories = buildList {
+            query.section.id?.let { add(it) }
+            addAll(query.includedCategories.map { it.id })
+            if (query.access == Access.PREMIUM) add(PREMIUM_CATEGORY_ID)
+        }
+        val excludedCategories = buildList {
+            addAll(BLOCKED_CATEGORIES.keys)
+            addAll(NON_READING_CATEGORIES.keys)
+            addAll(query.excludedCategories.map { it.id })
+            if (query.access == Access.FREE) add(PREMIUM_CATEGORY_ID)
+        }
+        val excludedTags = BLOCKED_TAGS.keys + query.excludedTags.map { it.id }
+        val orderBy = when {
+            query.sort == SortMode.RELEVANCE && query.text.isEmpty() -> "date"
+            else -> query.sort.apiOrderBy ?: "date"
+        }
+
+        val url = "$baseUrl/wp-json/wp/v2/posts".toHttpUrl().newBuilder().apply {
+            addQueryParameter("page", page.toString())
+            addQueryParameter("per_page", API_PAGE_SIZE.toString())
+            if (includedCategories.isNotEmpty()) {
+                addQueryParameter("categories[terms]", includedCategories.joinToString(","))
+                addQueryParameter("categories[operator]", "AND")
+            }
+            addQueryParameter("categories_exclude", excludedCategories.joinToString(","))
+            if (query.includedTags.isNotEmpty()) {
+                addQueryParameter("tags[terms]", query.includedTags.joinToString(",") { it.id.toString() })
+                addQueryParameter("tags[operator]", "AND")
+            }
+            addQueryParameter("tags_exclude", excludedTags.joinToString(","))
+            if (query.text.isNotEmpty()) addQueryParameter("search", query.text)
+            addQueryParameter("orderby", orderBy)
+            addQueryParameter("order", if (query.ascending) "asc" else "desc")
+            addQueryParameter("_embed", "wp:featuredmedia")
+            addQueryParameter("_fields", LIST_FIELDS)
+        }.build()
+
+        val response = client.get(url, Fetch.XHR)
+        val totalPages = response.header("X-WP-TotalPages")?.toIntOrNull() ?: 0
+        val mangas = response.parseAs<List<PostDto>>()
+            .filter { isAllowed(it.classList, it.plainTitle) }
+            .map { it.toSManga() }
+        return MangasPage(mangas, page < totalPages)
+    }
+
+    // Two archive pages per app page: the cards dropped by the exclusions would
+    // otherwise leave short or empty pages, and an empty page stops paging.
+    private suspend fun popularListing(page: Int, query: Query): MangasPage = coroutineScope {
+        val first = async { client.get(popularUrl(page * 2 - 1, query), Fetch.DOCUMENT).asJsoup() }
+        val second = async { client.get(popularUrl(page * 2, query), Fetch.DOCUMENT).asJsoup() }
+        val firstDoc = first.await()
+        val secondDoc = second.await()
+
+        val cards = (parseCards(firstDoc) + parseCards(secondDoc))
+            .filter { card -> card.isAllowedFor(query) }
+            .distinctBy { it.slug }
+        val covers = fetchMissingCovers(cards)
+        val mangas = cards.map { it.toSManga(it.thumbnail ?: covers[it.slug]) }
+        MangasPage(mangas, hasNextArchivePage(secondDoc, page * 2))
+    }
+
+    // The theme's own archive template (used without a category) has no images.
+    private suspend fun fetchMissingCovers(cards: List<Card>): Map<String, String?> {
+        val ids = cards.filter { it.thumbnail == null }.mapNotNull { it.postId }
+        if (ids.isEmpty()) return emptyMap()
+        val url = "$baseUrl/wp-json/wp/v2/posts".toHttpUrl().newBuilder()
+            .addQueryParameter("include", ids.joinToString(","))
+            .addQueryParameter("per_page", ids.size.toString())
+            .addQueryParameter("_embed", "wp:featuredmedia")
+            .addQueryParameter("_fields", LIST_FIELDS)
             .build()
-        return parseListing(client.get(url).asJsoup(), page)
+        return client.get(url, Fetch.XHR).parseAs<List<PostDto>>().associate { it.slug to it.thumbnail }
+    }
+
+    private fun popularUrl(archivePage: Int, query: Query): HttpUrl {
+        val categories = buildList {
+            query.section.slug?.let { add(it) }
+            addAll(query.includedCategories.map { it.slug })
+            if (query.access == Access.PREMIUM) add(PREMIUM_CATEGORY_SLUG)
+        }
+        return baseUrl.toHttpUrl().newBuilder().apply {
+            if (categories.isEmpty()) {
+                addQueryParameter("post_type", "post")
+            } else {
+                addQueryParameter("category_name", categories.joinToString("+"))
+            }
+            if (query.includedTags.isNotEmpty()) {
+                addQueryParameter("tag", query.includedTags.joinToString("+") { it.slug })
+            }
+            if (query.text.isNotEmpty()) addQueryParameter("s", query.text)
+            addQueryParameter("orderby", "comment_count")
+            addQueryParameter("order", if (query.ascending) "asc" else "desc")
+            if (archivePage > 1) addQueryParameter("paged", archivePage.toString())
+        }.build()
+    }
+
+    // Category archives use Elementor cards, the plain archive uses the theme's entries.
+    private fun parseCards(doc: Document): List<Card> = doc.select(CARD_SELECTOR).mapNotNull { article ->
+        val link = article.selectFirst(".elementor-post__title a[href], .entry-title a[href]")
+            ?: return@mapNotNull null
+        val slug = link.absUrl("href").toHttpUrl().pathSegments.singleOrNull { it.isNotEmpty() }
+            ?: return@mapNotNull null
+        val image = article.selectFirst("img")
+        val classes = article.classNames()
+        Card(
+            slug = slug,
+            title = link.text().ifEmpty { return@mapNotNull null },
+            thumbnail = (image?.absUrl("data-src")?.ifEmpty { null } ?: image?.absUrl("src"))?.ifEmpty { null },
+            classes = classes,
+            postId = classes.firstNotNullOfOrNull { POST_ID_CLASS.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() },
+        )
+    }
+
+    private fun hasNextArchivePage(doc: Document, archivePage: Int): Boolean {
+        val lastPage = doc.select("a.page-numbers[href]").maxOfOrNull { link ->
+            val href = link.attr("href")
+            (ARCHIVE_PAGE.find(href) ?: ARCHIVE_PAGED.find(href))?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        }
+        return if (lastPage == null) {
+            doc.select(CARD_SELECTOR).size >= ARCHIVE_PAGE_SIZE
+        } else {
+            lastPage > archivePage
+        }
+    }
+
+    private fun Card.isAllowedFor(query: Query): Boolean {
+        if (!isAllowed(classes, title)) return false
+        val premium = "category-$PREMIUM_CATEGORY_SLUG" in classes
+        if (query.access == Access.FREE && premium) return false
+        if (query.excludedCategories.any { "category-${it.slug}" in classes }) return false
+        return query.excludedTags.none { "tag-${it.slug}" in classes }
     }
 
     override suspend fun fetchMangaUpdate(
@@ -82,224 +218,182 @@ abstract class HentaiZone : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val doc = client.get(getMangaUrl(manga)).asJsoup()
-        val updated = manga.apply {
-            if (fetchDetails) {
-                title = doc.selectFirst("h1.entry-title, h1")?.text().orEmpty().ifBlank { title }
-                description = doc.selectFirst(".entry-content, .post-content, .description")?.text()
-                genre = doc.select(".cat-links a, .tags-links a, .post-categories a").joinToString { it.text() }
-                thumbnail_url = doc.selectFirst("meta[property=og:image]")?.attr("content")
-                    ?.takeIf { it.isNotBlank() } ?: thumbnail_url
-                initialized = true
-            }
+        val slug = manga.url.trim('/')
+        val post = fetchPost(slug, details = true) ?: throw IOException("Titolo non trovato su Hentai Zone.")
+        if (!isAllowed(post.classList, post.plainTitle)) {
+            throw IOException("Questo titolo è escluso dall'estensione.")
+        }
+        val premium = "category-$PREMIUM_CATEGORY_SLUG" in post.classList
+
+        manga.apply {
+            title = post.plainTitle
+            post.thumbnail?.let { thumbnail_url = it }
+            genre = post.terms
+                .filter { it.slug !in HIDDEN_GENRES }
+                .joinToString { it.plainName }
+            description = if (premium) PREMIUM_DESCRIPTION else null
+            status = SManga.COMPLETED
+            update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
         }
 
-        val updatedChapters = if (fetchChapters) {
-            extractChapters(doc).ifEmpty {
-                // Some Hentai Zone posts are one-shot readers with no chapter list.
-                listOf(
-                    SChapter.create().apply {
-                        name = "Lettura"
-                        url = manga.url
-                        chapter_number = 1f
-                    },
-                )
-            }
-        } else {
-            chapters
+        val chapter = SChapter.create().apply {
+            url = "/${post.slug}/"
+            name = if (premium) "Capitolo unico (Premium)" else "Capitolo unico"
+            chapter_number = 1f
+            date_upload = DATE_FORMAT.tryParse(post.dateGmt)
         }
-        return SMangaUpdate(updated, updatedChapters)
+        return SMangaUpdate(manga, listOf(chapter))
+    }
+
+    private suspend fun fetchPost(slug: String, details: Boolean = false): PostDto? {
+        val url = "$baseUrl/wp-json/wp/v2/posts".toHttpUrl().newBuilder()
+            .addQueryParameter("slug", slug)
+            .addQueryParameter("_embed", if (details) "wp:featuredmedia,wp:term" else "wp:featuredmedia")
+            .addQueryParameter("_fields", if (details) DETAIL_FIELDS else LIST_FIELDS)
+            .build()
+        return client.get(url, Fetch.XHR).parseAs<List<PostDto>>().firstOrNull()
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.get(getChapterUrl(chapter))
-        val doc = response.asJsoup()
+        // Never reuse a cached copy: after logging in, the same URL must be read again.
+        val doc = client.get(getChapterUrl(chapter), Fetch.DOCUMENT, CacheControl.FORCE_NETWORK).asJsoup()
 
-        if (isLoginPage(doc)) {
-            throw IOException(
-                "Accesso richiesto. Apri Hentai Zone dalla WebView della sorgente, " +
-                    "accedi con Patreon o con le credenziali Hentai Zone e riprova.",
-            )
-        }
-
-        var pageImages = extractPageImages(doc)
-
-        // Some reader templates place the actual page images in a same-site iframe.
-        if (pageImages.isEmpty()) {
-            val readerFrame = doc.select("iframe[src]")
-                .map { it.absUrl("src") }
-                .firstOrNull { it.startsWith(baseUrl) }
-            if (readerFrame != null) {
-                pageImages = runCatching {
-                    extractPageImages(client.get(readerFrame).asJsoup())
-                }.getOrDefault(emptyList())
-            }
-        }
-
-        if (pageImages.isNotEmpty()) {
-            return pageImages.mapIndexed { index, image -> Page(index, imageUrl = image) }
-        }
-
-        // A Patreon button may be displayed on a free manga page too. Only
-        // classify an actual access-denied/login response as restricted.
-        val pageText = doc.text()
-        val accessDenied = listOf(
-            "devi essere abbonato", "contenuto riservato agli abbonati",
-            "solo per gli abbonati", "accesso riservato", "effettua il login per leggere",
-            "devi effettuare l'accesso", "accesso richiesto",
-        ).any { pageText.contains(it, ignoreCase = true) }
-        if (accessDenied || isLoginPage(doc)) {
-            throw IOException(
-                "Il sito non ha restituito le pagine di lettura: potrebbe essere richiesto l'accesso. " +
-                    "Accedi tramite il sito ufficiale e riprova. Nessun controllo Premium viene aggirato.",
-            )
-        }
-
-        throw IOException("Nessuna immagine di lettura trovata nella pagina restituita dal sito.")
-    }
-
-    override suspend fun getMangaByUrl(url: okhttp3.HttpUrl): SManga? {
-        if (url.host != baseUrl.toHttpUrl().host) return null
-        val doc = client.get(url).asJsoup()
-        val title = doc.selectFirst("h1.entry-title, h1")?.text().orEmpty()
-        if (title.isBlank() || isBlocked(doc.text())) return null
-
-        val thumbnail = doc.selectFirst("meta[property=og:image]")?.attr("content").orEmpty()
-        return SManga.create().apply {
-            this.title = title
-            this.url = url.encodedPath
-            thumbnail_url = thumbnail
-        }
-    }
-
-    override fun getMangaUrl(manga: SManga): String =
-        if (manga.url.startsWith("http")) manga.url else "$baseUrl${manga.url}"
-
-    override fun getChapterUrl(chapter: SChapter): String =
-        if (chapter.url.startsWith("http")) chapter.url else "$baseUrl${chapter.url}"
-
-    private fun extractPageImages(doc: Document): List<String> {
-        // Hentai Zone's gallery uses .fg_thumbnail anchors as direct image URLs.
-        // Keep this selector first: the linked image can exist without an <img> src.
-        val galleryImages = doc.select(".fg_thumbnail a[href], a.fg_thumbnail[href]")
-            .map { it.absUrl("href") }
-            .filter { it.startsWith("https://") || it.startsWith("http://") }
-
-        val imageSelectors = listOf(
-            // Current Hentai Zone pages use the GFFolder gallery plugin.
-            ".gff-item img", ".gffolder img", "[class*=gffolder] img",
-            "[src*='/gffolder-cache/']", "[data-lazy-src*='/gffolder-cache/']",
-            "#reader img", ".reader img", ".reading-content img", ".chapter-content img",
-            ".entry-content img", ".comic-reader img", ".pages img", ".gallery img",
-            "[class*=reader] img", "[id*=reader] img",
-        )
-        return (galleryImages + imageSelectors
-            .flatMap { selector -> doc.select(selector) }
-            .mapNotNull { image ->
-                listOf("data-src", "data-lazy-src", "data-original", "data-full-url", "src")
-                    .asSequence()
-                    .map { image.absUrl(it) }
-                    .firstOrNull { it.startsWith("https://") || it.startsWith("http://") }
-            })
+        val images = doc.select("div.gff-gallery[data-images]")
+            .flatMap { it.attr("data-images").parseAs<List<GalleryImageDto>>() }
+            .map { it.src.toHttpUrl().toString() }
             .distinct()
-    }
-
-    private fun parseListing(doc: Document, page: Int): MangasPage {
-        // WordPress archives vary by theme: prefer real post containers and keep
-        // generic fallbacks last so navigation/widgets do not become manga entries.
-        val cards = doc.select(
-            "article, .type-post, .hentry, .post, .blog-post, .manga-item, .item",
-        )
-        val mangas = cards.mapNotNull { card ->
-            mangaFromElement(doc, card)?.takeUnless { isBlocked(card.text()) }
-        }.distinctBy { it.url }
-
-        val hasNext = doc.selectFirst(
-            "a.next, a.next.page-numbers, .pagination a.next, a[rel=next], " +
-                ".nav-links a.next, .page-numbers.next",
-        ) != null || doc.select("a[href*='/page/'], a[href*='paged=']").any { link ->
-            val href = link.absUrl("href")
-            val linkedPage = Regex("""/page/(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
-                ?: Regex("""[?&]paged=(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
-            linkedPage != null && linkedPage > page
+        if (images.isNotEmpty()) {
+            return images.mapIndexed { index, image -> Page(index, imageUrl = image) }
         }
 
-        return MangasPage(mangas, hasNext)
+        val premium = doc.selectFirst("a[href*=patreon.com/checkout]") != null
+        val loggedIn = doc.body().hasClass("logged-in") || doc.selectFirst("a[href*=ps_oauth_start]") == null
+        when {
+            premium && !loggedIn -> throw IOException(LOGIN_REQUIRED)
+            premium -> throw IOException(SUBSCRIPTION_REQUIRED)
+            else -> return emptyList()
+        }
     }
 
-    private fun mangaFromElement(doc: Document, element: Element): SManga? {
-        val titleLink = element.selectFirst(
-            "h1 a[href], h2 a[href], h3 a[href], .entry-title a[href], " +
-                ".post-title a[href], a[rel=bookmark][href]",
-        )
-        val link = titleLink?.takeIf { isContentUrl(it.absUrl("href")) }
-            ?: element.select("a[href]").firstOrNull {
-                it.text().isNotBlank() && isContentUrl(it.absUrl("href"))
+    override val supportsFilterFetching = true
+
+    override suspend fun fetchFilterData(): JsonElement {
+        val categories = client.get(termsUrl("categories", 1), Fetch.XHR).parseAs<List<TermDto>>()
+        val tags = buildList {
+            for (page in 1..TAG_PAGES) {
+                val batch = client.get(termsUrl("tags", page), Fetch.XHR).parseAs<List<TermDto>>()
+                addAll(batch)
+                if (batch.size < TERMS_PAGE_SIZE) break
             }
-            ?: return null
-        val href = link.absUrl("href").ifBlank { return null }
-        val title = link.text().ifBlank {
-            element.selectFirst("h1, h2, h3")?.text().orEmpty()
         }
-        if (title.isBlank() || isBlocked(element.text())) return null
-
-        val image = element.selectFirst("img")
-        val thumbnail = image?.let {
-            it.absUrl("data-src")
-                .ifBlank { it.absUrl("data-lazy-src") }
-                .ifBlank { it.absUrl("data-original") }
-                .ifBlank { it.absUrl("src") }
-        }.orEmpty().ifBlank {
-            doc.selectFirst("meta[property=og:image]")?.attr("content").orEmpty()
-        }
-
-        return SManga.create().apply {
-            this.title = title
-            url = href.removePrefix(baseUrl)
-            thumbnail_url = thumbnail
-        }
+        return FilterDataDto(categories, tags).toJsonElement()
     }
 
-    private fun extractChapters(doc: Document): List<SChapter> {
-        val chapterLinks = doc.select(
-            ".chapter-list a[href], .chapters a[href], .wp-manga-chapter a[href], " +
-                ".listing-chapters a[href], a.chapter-link[href], " +
-                ".entry-content a[href*='capitolo'], .entry-content a[href*='chapter']",
+    private fun termsUrl(taxonomy: String, page: Int): HttpUrl =
+        "$baseUrl/wp-json/wp/v2/$taxonomy".toHttpUrl().newBuilder()
+            .addQueryParameter("per_page", TERMS_PAGE_SIZE.toString())
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("orderby", "count")
+            .addQueryParameter("order", "desc")
+            .addQueryParameter("hide_empty", "true")
+            .addQueryParameter("_fields", "id,slug,name,count")
+            .build()
+
+    override fun getFilterList(data: JsonElement?): FilterList {
+        val terms = data?.let { runCatching { it.parseAs<FilterDataDto>() }.getOrNull() }
+        return FilterList(
+            buildList {
+                add(SortFilter())
+                add(SectionFilter())
+                add(AccessFilter())
+                if (terms != null) {
+                    add(Filter.Separator())
+                    add(Filter.Header("Tocca una volta per includere, due volte per escludere"))
+                    add(CategoryGroup(terms.categories.toOptions(CATEGORY_SKIP)))
+                    add(TagGroup(terms.tags.filter { it.count >= MIN_TAG_COUNT }.toOptions(BLOCKED_TAGS.values.toSet())))
+                }
+                add(Filter.Separator())
+                add(Filter.Header("Popolari = più commentati. I contenuti con minori o ambientazioni scolastiche sono sempre esclusi."))
+            },
         )
-
-        return chapterLinks.mapNotNull { link ->
-            val href = link.absUrl("href")
-            val title = link.text()
-            if (href.isBlank() || title.isBlank() || !href.startsWith(baseUrl)) return@mapNotNull null
-            if (isBlocked("$title ${link.parent()?.text().orEmpty()}")) return@mapNotNull null
-
-            SChapter.create().apply {
-                name = title
-                url = href.removePrefix(baseUrl)
-                chapter_number = Regex("""(?i)(?:cap(?:itolo)?\.?\s*)([0-9]+(?:[.,][0-9]+)?)""")
-                    .find(title)?.groupValues?.get(1)?.replace(',', '.')?.toFloatOrNull() ?: -1f
-            }
-        }.distinctBy { it.url }
     }
 
-    private fun isContentUrl(url: String): Boolean {
-        if (url.isBlank()) return false
-        val parsed = runCatching { url.toHttpUrl() }.getOrNull() ?: return false
-        if (parsed.host != baseUrl.toHttpUrl().host) return false
-        val path = parsed.encodedPath.lowercase()
-        if (path.startsWith("/category/") || path.startsWith("/tag/") ||
-            path.startsWith("/author/") || path.startsWith("/wp-") ||
-            path.contains("/video") || path == "/hentai-manga/" ||
-            path.matches(Regex(""".*/page/\d+/?"""))
-        ) return false
-        return !path.substringAfterLast('/').matches(Regex(""".+\.(jpg|jpeg|png|gif|webp|avif|pdf)$"""))
+    private fun List<TermDto>.toOptions(skip: Set<String>): List<TermOption> = this
+        .filter { it.slug !in skip && !BLOCKED_TEXT.containsMatchIn(it.slug) }
+        .sortedBy { it.plainName.lowercase(Locale.ITALIAN) }
+        .map { TermOption(it.plainName, it.id, it.slug) }
+
+    private fun isAllowed(classes: Collection<String>, title: String): Boolean =
+        classes.none { it in BLOCKED_CLASSES } && !BLOCKED_TEXT.containsMatchIn(title)
+
+    private class Query(
+        val text: String = "",
+        val sort: SortMode = SortMode.POPULAR,
+        val ascending: Boolean = false,
+        val section: Section = SECTIONS[0],
+        val access: Access = Access.ALL,
+        val includedCategories: List<TermOption> = emptyList(),
+        val excludedCategories: List<TermOption> = emptyList(),
+        val includedTags: List<TermOption> = emptyList(),
+        val excludedTags: List<TermOption> = emptyList(),
+    )
+
+    private class Card(
+        val slug: String,
+        val title: String,
+        val thumbnail: String?,
+        val classes: Set<String>,
+        val postId: Int?,
+    ) {
+        fun toSManga(cover: String?) = SManga.create().apply {
+            url = "/$slug/"
+            title = this@Card.title
+            thumbnail_url = cover
+        }
     }
 
-    private fun isLoginPage(doc: Document): Boolean =
-        doc.selectFirst("form#loginform, form[action*='wp-login.php']") != null ||
-            doc.selectFirst("form[action*=login], input[type=password]") != null
+    companion object {
+        private const val API_PAGE_SIZE = 24
+        private const val ARCHIVE_PAGE_SIZE = 12
+        private const val TERMS_PAGE_SIZE = 100
+        private const val TAG_PAGES = 3
+        private const val MIN_TAG_COUNT = 5
 
-    private class CategoryFilter : Filter.Text("Categoria (slug)")
+        private const val LIST_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded"
+        private const val DETAIL_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_links.wp:term,_embedded"
 
-    private fun isBlocked(text: String): Boolean = blockedLabels.containsMatchIn(text)
+        private const val CARD_SELECTOR = "article.elementor-post, article.type-post"
+        private val POST_ID_CLASS = Regex("""post-(\d+)""")
+        private val ARCHIVE_PAGE = Regex("""/page/(\d+)""")
+        private val ARCHIVE_PAGED = Regex("""[?&]paged=(\d+)""")
+
+        private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+
+        private val BLOCKED_CLASSES: Set<String> =
+            BLOCKED_CATEGORIES.values.map { "category-$it" }.toSet() +
+                NON_READING_CATEGORIES.values.map { "category-$it" } +
+                BLOCKED_TAGS.values.map { "tag-$it" }
+
+        private val CATEGORY_SKIP: Set<String> =
+            SECTIONS.mapNotNull { it.slug }.toSet() +
+                PREMIUM_CATEGORY_SLUG +
+                BLOCKED_CATEGORIES.values +
+                NON_READING_CATEGORIES.values
+
+        private val HIDDEN_GENRES = setOf("italiano", PREMIUM_CATEGORY_SLUG)
+
+        private const val PREMIUM_DESCRIPTION =
+            "Titolo Premium: il sito mostra le pagine solo agli abbonati Patreon che hanno effettuato l'accesso. " +
+                "Per accedere apri la WebView (icona del mappamondo), tocca «Entra con Patreon» e completa il login."
+
+        private const val LOGIN_REQUIRED =
+            "Titolo Premium: serve l'accesso. Apri la WebView, tocca «Entra con Patreon», " +
+                "completa il login, torna indietro e riprova."
+
+        private const val SUBSCRIPTION_REQUIRED =
+            "Hai effettuato l'accesso, ma il sito non mostra le pagine di questo titolo Premium. " +
+                "Controlla che l'abbonamento Patreon sia attivo e collegato a Hentai Zone."
+    }
 }

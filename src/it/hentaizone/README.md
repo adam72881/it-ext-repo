@@ -3,39 +3,55 @@
 Modulo Keiyoushi per Mihon/Tachimanga, separato da Hentai ITA.
 
 - Sito: https://hentaizone.me/
-- Catalogo: https://hentaizone.me/hentai-manga/
-- Pagina gratuita di prova: https://hentaizone.me/lezioni-di-fitness/
-- Login ufficiale: https://hentaizone.me/wp-login.php
 - Lingua: italiano
 - Libreria: KeiSource / libVersion 1.6
 - Pacchetto: eu.kanade.tachiyomi.extension.it.hentaizone
 
-## Confronto dei parser
+## Da dove arrivano i dati
 
-Il driver pubblico Yamete per Hentai Zone usa la galleria `.fg_thumbnail a` come elenco dei collegamenti alle immagini originali; il test pubblico del driver su `/mind-control-ch-4/` si aspetta 16 immagini. Il parser Kotlin usa lo stesso selettore per il lettore.
+| Schermata | Fonte | Ordine |
+|---|---|---|
+| Popolari | archivio HTML della categoria (`?category_name=…&orderby=comment_count`) | più commentati, l'unico dato di popolarità che il sito espone |
+| Recenti | API REST di WordPress (`/wp-json/wp/v2/posts`) | data di uscita |
+| Ricerca e filtri | API REST, oppure archivio HTML se l'ordine è "Popolari" | a scelta |
+| Dettagli | API REST con categorie e tag (`_embed=wp:term`) | — |
+| Lettura | pagina dell'articolo, elenco immagini da `.gff-gallery[data-images]` | — |
 
-Il driver Yamete per Hentai ITA usa invece `.blocks-gallery-item figure a` e apre ogni pagina allegata per leggere `.entry-attachment img`. Sono strutture diverse: non è corretto copiare alla cieca il selettore di Hentai ITA dentro Hentai Zone.
-
-Il codice sorgente di Hentai ITA non è presente in questo repository: sono disponibili il suo APK/JAR e i metadati di distribuzione. Il confronto del parser è quindi basato sul driver pubblico Yamete e non su un confronto sorgente-a-sorgente dei due APK.
-
-## Catalogo e lettura
-
-- Catalogo WordPress su `/hentai-manga/`, con paginazione.
-- Ricerca WordPress tramite `s`, `post_type` e `paged`.
-- Il catalogo usa card WordPress/Elementor; il lettore estrae le immagini del plugin GFFolder da `.gff-item img` e dagli URL `/wp-content/uploads/gffolder-cache/`.
-- I post senza un elenco di capitoli sono trattati come letture singole.
-- Le pagine premium non vengono sbloccate né aggirate.
-
-## Login
-
-La sorgente si apre sul catalogo gratuito. Il login ufficiale è disponibile dal sito tramite `/wp-login.php`; la condivisione dei cookie WebView → OkHttp non è stata verificata, quindi il login non va considerato funzionante finché non viene provato in Mihon.
+Una pagina "Popolari" dell'app corrisponde a due pagine dell'archivio, così le esclusioni non lasciano pagine vuote che fermerebbero lo scorrimento.
 
 ## Filtri
 
-Il parser esclude risultati con etichette esplicite come loli, shota, underage, minorenne e teen. I metadati da soli non garantiscono che tutte le opere con età ambigua siano etichettate correttamente; non è possibile promettere un filtro perfetto senza revisione dei contenuti.
+- **Ordina per**: Popolari (più commentati), Data di uscita, Ultimo aggiornamento, Titolo, Pertinenza (con una ricerca testuale). Crescente o decrescente.
+- **Sezione**: Manga hentai, Doujinshi, Fumetti porno, Tutti i fumetti.
+- **Accesso**: Tutti, Solo gratuiti, Solo Premium.
+- **Categorie** e **Tag**: tocca una volta per includere, due volte per escludere. Più voci incluse si combinano in AND. L'elenco viene scaricato dal sito e tenuto in cache per 3 giorni. Al primo avvio compare dopo aver toccato "Reimposta".
+
+## Premium
+
+I titoli Premium compaiono nelle liste insieme a quelli gratuiti. Nei dettagli sono segnati come Premium, e il capitolo si chiama "Capitolo unico (Premium)".
+
+Il sito mostra le pagine di un titolo Premium solo a chi ha effettuato l'accesso con un account Patreon abbonato. L'app condivide i cookie della WebView con la sorgente, quindi basta:
+
+1. aprire un titolo Premium e toccare l'icona del mappamondo (WebView);
+2. toccare «Entra con Patreon» e completare l'accesso;
+3. tornare indietro e aprire il capitolo.
+
+La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso funziona subito. Se l'accesso manca, o l'abbonamento non è attivo, l'errore lo dice. Nessun controllo del sito viene aggirato: le pagine arrivano solo se il sito le serve all'account collegato.
+
+## Contenuti esclusi
+
+Sono sempre esclusi, sia nelle richieste al sito sia sulle schede ricevute:
+
+- categorie: Teen, tette piccole, My Hero Academia, Sailor Moon, Simpson, Griffin, American Dad;
+- tag: teen, teen titans, school girl, scuola, sesso a scuola, uniforme scolastica, liceale, student/studente/studenti/studentessa/studentesse, professoressa e studente, Fantagenitori;
+- titoli che contengono parole come loli, shota, teen, school, scuola, liceale, studentessa, ragazzina, bambina, sorellina.
+
+Queste voci non compaiono neanche tra i filtri. L'esclusione si basa su come il sito etichetta le opere, quindi non può garantire che ogni opera con personaggi di età ambigua sia etichettata correttamente.
+
+Video (Video Hentai Sub Ita) e giochi non hanno pagine da leggere e sono esclusi.
 
 ## Controlli prima della build
 
-La workflow esegue prima una verifica HTTP del catalogo e della pagina gratuita di prova, controlla che il markup della galleria sia presente, valida lo schema Protocol Buffers e il publisher. Solo se questi controlli passano avvia la compilazione.
+`tools/check_hentai_zone_site.py` verifica l'API REST (paginazione ed esclusioni), l'archivio ordinato per commenti con le classi delle categorie sulle schede e la galleria `data-images` di un articolo gratuito. Solo se questi controlli passano parte la compilazione.
 
-La pubblicazione genera APK, JAR, `index.json`, `index.min.json` e `index.pb`. L'indice `index.pb` viene serializzato come Protocol Buffers e poi compresso GZIP, seguendo lo schema ufficiale Keiyoushi; non viene più creato comprimendo JSON.
+La pubblicazione sul ramo `repo` avviene solo dai push su `hentai-zone-dev`. Sugli altri rami la workflow compila e fa il lint senza pubblicare.

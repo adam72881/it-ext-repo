@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - hentai-zone-dev
+      - claude/tachiyomi-extensions-repo-7ssu8l
     paths:
       - "src/it/hentaizone/**"
       - "tools/**"
@@ -91,6 +92,7 @@ jobs:
           if-no-files-found: error
 
       - name: Checkout distribution branch
+        if: github.ref == 'refs/heads/hentai-zone-dev'
         uses: actions/checkout@v4
         with:
           ref: repo
@@ -98,9 +100,11 @@ jobs:
           persist-credentials: true
 
       - name: Install official Protobuf runtime
+        if: github.ref == 'refs/heads/hentai-zone-dev'
         run: python3 -m pip install --user 'protobuf>=7.35.1,<8'
 
       - name: Publish APK, JAR, JSON and official Protobuf indexes
+        if: github.ref == 'refs/heads/hentai-zone-dev'
         run: |
           set -euo pipefail
           python3 tools/publish_hentai_zone.py keiyoushi/src/it/hentaizone/build distribution keiyoushi/.github/scripts
