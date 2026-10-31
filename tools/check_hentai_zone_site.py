@@ -23,15 +23,20 @@ class SiteParser(HTMLParser):
         self.title = []
         self.anchor_samples = []
         self.image_samples = []
+        self.stack = []
+        self.gff_images = 0
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         classes = set((attrs.get("class") or "").split())
         self.classes.update(classes)
+        self.stack.append((tag, classes))
         if tag == "title":
             self.title_text = True
         if tag == "img":
             self.images += 1
+            if any("gff-item" in parent_classes for _, parent_classes in self.stack):
+                self.gff_images += 1
             if len(self.image_samples) < 20:
                 self.image_samples.append({k: v for k, v in attrs.items() if k in ("src", "data-src", "data-lazy-src", "data-original", "class")})
         if tag == "a" and attrs.get("href") and len(self.anchor_samples) < 30:
@@ -48,6 +53,10 @@ class SiteParser(HTMLParser):
                 self.post_links += 1
 
     def handle_endtag(self, tag):
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i][0] == tag:
+                del self.stack[i:]
+                break
         if tag == "title":
             self.title_text = False
         if tag in ("article", "div", "li"):
@@ -79,18 +88,20 @@ if not internal:
 final_url, html = fetch(FREE_TEST)
 free = SiteParser()
 free.feed(html)
-print("FREE TEST:", "title=", " ".join(free.title), "gallery-links=", free.gallery_links,
+print("FREE TEST:", "title=", " ".join(free.title), "gallery-links=", free.gallery_links, "gff-item-images=", free.gff_images,
       "images=", free.images, "classes=", free.classes.most_common(25),
       "anchors=", free.anchor_samples, "image_samples=", free.image_samples)
 
-if free.gallery_links == 0:
+if free.gff_images == 0:
     final_url, html = fetch(KNOWN_DRIVER_TEST)
     known = SiteParser()
     known.feed(html)
-    print("KNOWN DRIVER TEST:", "title=", " ".join(known.title), "gallery-links=", known.gallery_links,
+    print("KNOWN DRIVER TEST:", "title=", " ".join(known.title), "gallery-links=", known.gallery_links, "gff-item-images=", known.gff_images,
           "images=", known.images, "classes=", known.classes.most_common(25),
           "anchors=", known.anchor_samples, "image_samples=", known.image_samples)
-    if known.gallery_links == 0:
-        raise SystemExit("Reader check failed: neither the user free test page nor the known Yamete test page exposes .fg_thumbnail links; do not compile/publish.")
+    if known.gff_images == 0:
+        raise SystemExit("Reader check failed: neither test page exposes the current GFFolder image container; do not compile/publish.")
+    else:
+        print("Reader markup validated through the current GFFolder image container.")
 
-print("Site preflight passed: the catalog and at least one known gallery page expose links.")
+print("Site preflight passed: catalog cards and current GFFolder reader images are present.")
