@@ -60,9 +60,12 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
           accept-android-sdk-licenses: true
 
+      # Keiyoushi may have its own module with the same name: replace it, or
+      # cp would nest ours inside it and build theirs.
       - name: Add module to Keiyoushi build
         run: |
           mkdir -p keiyoushi/src/it
+          rm -rf keiyoushi/src/it/${{ inputs.module }}
           cp -R src/it/${{ inputs.module }} keiyoushi/src/it/${{ inputs.module }}
 
       # Without SIGNING_KEY Gradle signs with a throwaway debug key: fine for

@@ -5,7 +5,9 @@ Modulo Keiyoushi per Mihon/Tachimanga.
 - Sito: https://www.hentai-archive.com/
 - Lingua: italiano
 - Libreria: KeiSource / libVersion 1.6
-- Pacchetto: eu.kanade.tachiyomi.extension.it.hentaiarchive
+- Pacchetto: eu.kanade.tachiyomi.extension.it.hentaiarchiveita
+
+Keiyoushi ha già una sua estensione "HentaiArchive" (pacchetto `…it.hentaiarchive`), molto più semplice: questa usa un pacchetto diverso, così le due non vanno in conflitto.
 
 ## Da dove arrivano i dati
 

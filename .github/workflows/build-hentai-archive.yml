@@ -6,7 +6,7 @@ on:
       - hentai-archive-dev
       - claude/tachiyomi-extensions-repo-7ssu8l
     paths:
-      - "src/it/hentaiarchive/**"
+      - "src/it/hentaiarchiveita/**"
       - "tools/check_hentai_archive_site.py"
       - "tools/publish_extension.py"
       - ".github/workflows/build-hentai-archive.yml"
@@ -27,7 +27,7 @@ jobs:
   hentai-archive:
     uses: ./.github/workflows/build-extension.yml
     with:
-      module: hentaiarchive
+      module: hentaiarchiveita
       preflight: check_hentai_archive_site.py
       publish: ${{ github.ref == 'refs/heads/hentai-archive-dev' }}
     secrets: inherit

@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.extension.it.hentaiarchive
+package eu.kanade.tachiyomi.extension.it.hentaiarchiveita
 
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
