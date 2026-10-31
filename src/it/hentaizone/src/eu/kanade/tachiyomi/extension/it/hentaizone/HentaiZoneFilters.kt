@@ -68,6 +68,7 @@ val BLOCKED_TAGS = mapOf(
     2000 to "uniforme-scolastica",
     2054 to "liceale",
     418 to "fantagenitori",
+    782 to "teen-titans",
 )
 
 val BLOCKED_TEXT = Regex(

@@ -1,0 +1,31 @@
+name: Build and publish Hentai ITA
+
+on:
+  push:
+    branches:
+      - hentai-ita-dev
+      - claude/tachiyomi-extensions-repo-7ssu8l
+    paths:
+      - "src/it/hentaiita/**"
+      - "tools/check_hentai_ita_site.py"
+      - "tools/publish_extension.py"
+      - ".github/workflows/build-hentai-ita.yml"
+      - ".github/workflows/build-extension.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Shared with the Hentai Zone workflow so two publishes never race on the repo branch.
+concurrency:
+  group: extension-builds
+  cancel-in-progress: false
+
+jobs:
+  hentai-ita:
+    uses: ./.github/workflows/build-extension.yml
+    with:
+      module: hentaiita
+      preflight: check_hentai_ita_site.py
+      publish: ${{ github.ref == 'refs/heads/hentai-ita-dev' }}
+    secrets: inherit

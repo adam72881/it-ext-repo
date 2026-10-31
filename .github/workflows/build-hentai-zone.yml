@@ -7,111 +7,25 @@ on:
       - claude/tachiyomi-extensions-repo-7ssu8l
     paths:
       - "src/it/hentaizone/**"
-      - "tools/**"
+      - "tools/check_hentai_zone_site.py"
+      - "tools/publish_extension.py"
       - ".github/workflows/build-hentai-zone.yml"
+      - ".github/workflows/build-extension.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+# Shared with the Hentai ITA workflow so two publishes never race on the repo branch.
 concurrency:
-  group: hentai-zone-${{ github.ref }}
-  cancel-in-progress: true
+  group: extension-builds
+  cancel-in-progress: false
 
 jobs:
-  preflight:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout source repository
-        uses: actions/checkout@v4
-      - name: Check live catalog and free reader markup
-        run: python3 tools/check_hentai_zone_site.py
-      - name: Validate JSON publisher syntax
-        run: python3 -m py_compile tools/publish_hentai_zone.py
-
-  build:
-    needs: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout source repository
-        uses: actions/checkout@v4
-
-      - name: Checkout Keiyoushi build system
-        uses: actions/checkout@v4
-        with:
-          repository: keiyoushi/extensions-source
-          ref: main
-          path: keiyoushi
-
-      - name: Install Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools platforms;android-35 build-tools;35.0.0
-          accept-android-sdk-licenses: true
-
-      - name: Add Hentai Zone module to Keiyoushi build
-        run: |
-          mkdir -p keiyoushi/src/it
-          cp -R src/it/hentaizone keiyoushi/src/it/hentaizone
-
-      - name: Format, build APK and JAR, and run release lint
-        working-directory: keiyoushi
-        run: ./gradlew --no-daemon :src:it:hentaizone:spotlessApply :src:it:hentaizone:assembleRelease :src:it:hentaizone:lintRelease --stacktrace
-
-      - name: Verify build outputs and source metadata
-        run: |
-          test -s keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json
-          test "$(find keiyoushi/src/it/hentaizone/build/outputs/apk/release -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
-          test "$(find keiyoushi/src/it/hentaizone/build/outputs/jar/release -maxdepth 1 -name '*.jar' | wc -l)" -eq 1
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          d = json.loads(Path("keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json").read_text())
-          assert d["packageName"] == "eu.kanade.tachiyomi.extension.it.hentaizone"
-          assert d["sources"][0]["lang"] == "it"
-          assert d["sources"][0]["baseUrl"] == "https://hentaizone.me"
-          print("APK/JAR/source metadata agree:", d["versionName"], d["versionCode"])
-          PY
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: hentai-zone-build
-          path: |
-            keiyoushi/src/it/hentaizone/build/outputs/apk/release/*.apk
-            keiyoushi/src/it/hentaizone/build/outputs/jar/release/*.jar
-            keiyoushi/src/it/hentaizone/build/keiyoushi-source-info.json
-          if-no-files-found: error
-
-      - name: Checkout distribution branch
-        if: github.ref == 'refs/heads/hentai-zone-dev'
-        uses: actions/checkout@v4
-        with:
-          ref: repo
-          path: distribution
-          persist-credentials: true
-
-      - name: Install official Protobuf runtime
-        if: github.ref == 'refs/heads/hentai-zone-dev'
-        run: python3 -m pip install --user 'protobuf>=7.35.1,<8'
-
-      - name: Publish APK, JAR, JSON and official Protobuf indexes
-        if: github.ref == 'refs/heads/hentai-zone-dev'
-        run: |
-          set -euo pipefail
-          python3 tools/publish_hentai_zone.py keiyoushi/src/it/hentaizone/build distribution keiyoushi/.github/scripts
-          cd distribution
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apk jar index.json index.pb index.min.json
-          git diff --cached --check
-          git commit -m "Publish Hentai Zone extension"
-          git push origin repo
+  hentai-zone:
+    uses: ./.github/workflows/build-extension.yml
+    with:
+      module: hentaizone
+      preflight: check_hentai_zone_site.py
+      publish: ${{ github.ref == 'refs/heads/hentai-zone-dev' }}
+    secrets: inherit

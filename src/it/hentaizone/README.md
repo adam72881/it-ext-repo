@@ -42,7 +42,7 @@ La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso 
 
 Sono esclusi solo i contenuti che indicano esplicitamente minori, sia nelle richieste al sito sia sulle schede ricevute:
 
-- tag: school girl, liceale, uniforme scolastica, Fantagenitori;
+- tag: school girl, liceale, uniforme scolastica, Fantagenitori, Teen Titans;
 - categorie di serie con personaggi canonicamente minorenni: My Hero Academia, Sailor Moon;
 - titoli che contengono loli, shota, preteen, underage, minorenne, bambina/bambino, liceale/liceali, elementari.
 
@@ -54,4 +54,4 @@ Video (Video Hentai Sub Ita) e giochi non hanno pagine da leggere e sono esclusi
 
 `tools/check_hentai_zone_site.py` verifica l'API REST (paginazione ed esclusioni), l'archivio ordinato per commenti con le classi delle categorie sulle schede e la galleria `data-images` di un articolo gratuito. Solo se questi controlli passano parte la compilazione.
 
-La pubblicazione sul ramo `repo` avviene solo dai push su `hentai-zone-dev`. Sugli altri rami la workflow compila e fa il lint senza pubblicare.
+La build usa la workflow comune `build-extension.yml` e pubblica sul ramo `repo` solo dai push su `hentai-zone-dev`. Sugli altri rami compila e fa il lint senza pubblicare.

@@ -1,0 +1,132 @@
+name: Build extension (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        description: "Module directory under src/it, e.g. hentaizone"
+        required: true
+        type: string
+      preflight:
+        description: "Site check script under tools/"
+        required: true
+        type: string
+      publish:
+        description: "Publish to the repo branch after a successful build"
+        required: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+      - name: Check the live site
+        run: python3 tools/${{ inputs.preflight }}
+      - name: Validate publisher syntax
+        run: python3 -m py_compile tools/publish_extension.py
+
+  build:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HAS_SIGNING_KEY: ${{ secrets.SIGNING_KEY != '' }}
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Checkout Keiyoushi build system
+        uses: actions/checkout@v4
+        with:
+          repository: keiyoushi/extensions-source
+          ref: main
+          path: keiyoushi
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          accept-android-sdk-licenses: true
+
+      - name: Add module to Keiyoushi build
+        run: |
+          mkdir -p keiyoushi/src/it
+          cp -R src/it/${{ inputs.module }} keiyoushi/src/it/${{ inputs.module }}
+
+      # Without the repository key Gradle signs with a throwaway debug key,
+      # which the app rejects as an update; publishing then refuses to run.
+      - name: Prepare signing key
+        if: env.HAS_SIGNING_KEY == 'true'
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: echo "$SIGNING_KEY" | base64 -d > keiyoushi/signingkey.jks
+
+      - name: Format, build APK and JAR, and run release lint
+        working-directory: keiyoushi
+        env:
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew --no-daemon :src:it:${{ inputs.module }}:spotlessApply :src:it:${{ inputs.module }}:assembleRelease :src:it:${{ inputs.module }}:lintRelease --stacktrace
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f keiyoushi/signingkey.jks
+
+      - name: Verify build outputs
+        run: |
+          out=keiyoushi/src/it/${{ inputs.module }}/build
+          test -s $out/keiyoushi-source-info.json
+          test "$(find $out/outputs/apk/release -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          test "$(find $out/outputs/jar/release -maxdepth 1 -name '*.jar' | wc -l)" -eq 1
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs $out/outputs/apk/release/*.apk | grep SHA-256
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.module }}-build
+          path: |
+            keiyoushi/src/it/${{ inputs.module }}/build/outputs/apk/release/*.apk
+            keiyoushi/src/it/${{ inputs.module }}/build/outputs/jar/release/*.jar
+            keiyoushi/src/it/${{ inputs.module }}/build/keiyoushi-source-info.json
+          if-no-files-found: error
+
+      - name: Checkout distribution branch
+        if: inputs.publish
+        uses: actions/checkout@v4
+        with:
+          ref: repo
+          path: distribution
+          persist-credentials: true
+
+      - name: Install official Protobuf runtime
+        if: inputs.publish
+        run: python3 -m pip install --user 'protobuf>=7.35.1,<8'
+
+      - name: Publish APK, JAR, JSON and Protobuf indexes
+        if: inputs.publish
+        run: |
+          set -euo pipefail
+          python3 tools/publish_extension.py \
+            keiyoushi/src/it/${{ inputs.module }}/build distribution keiyoushi/.github/scripts \
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          cd distribution
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A apk jar index.json index.pb index.min.json
+          git diff --cached --check
+          git commit -m "Publish ${{ inputs.module }}"
+          git pull --rebase origin repo
+          git push origin repo
