@@ -107,7 +107,7 @@ jobs:
           cd distribution
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apk jar index.min.json
+          git add apk jar index.json index.pb index.min.json
           git diff --cached --check
           git commit -m "Publish Hentai Zone extension"
           git push origin repo
