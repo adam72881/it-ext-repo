@@ -21,6 +21,8 @@ class SiteParser(HTMLParser):
         self.post_links = 0
         self.title_text = False
         self.title = []
+        self.anchor_samples = []
+        self.image_samples = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -30,6 +32,10 @@ class SiteParser(HTMLParser):
             self.title_text = True
         if tag == "img":
             self.images += 1
+            if len(self.image_samples) < 20:
+                self.image_samples.append({k: v for k, v in attrs.items() if k in ("src", "data-src", "data-lazy-src", "data-original", "class")})
+        if tag == "a" and attrs.get("href") and len(self.anchor_samples) < 30:
+            self.anchor_samples.append((attrs.get("class", ""), attrs.get("href", "")))
         if tag in ("article",) or classes.intersection({"post", "type-post", "hentry", "manga-item"}):
             self._post_depth += 1
         if "fg_thumbnail" in classes:
@@ -74,14 +80,16 @@ final_url, html = fetch(FREE_TEST)
 free = SiteParser()
 free.feed(html)
 print("FREE TEST:", "title=", " ".join(free.title), "gallery-links=", free.gallery_links,
-      "images=", free.images, "classes=", free.classes.most_common(25))
+      "images=", free.images, "classes=", free.classes.most_common(25),
+      "anchors=", free.anchor_samples, "image_samples=", free.image_samples)
 
 if free.gallery_links == 0:
     final_url, html = fetch(KNOWN_DRIVER_TEST)
     known = SiteParser()
     known.feed(html)
     print("KNOWN DRIVER TEST:", "title=", " ".join(known.title), "gallery-links=", known.gallery_links,
-          "images=", known.images, "classes=", known.classes.most_common(25))
+          "images=", known.images, "classes=", known.classes.most_common(25),
+          "anchors=", known.anchor_samples, "image_samples=", known.image_samples)
     if known.gallery_links == 0:
         raise SystemExit("Reader check failed: neither the user free test page nor the known Yamete test page exposes .fg_thumbnail links; do not compile/publish.")
 
