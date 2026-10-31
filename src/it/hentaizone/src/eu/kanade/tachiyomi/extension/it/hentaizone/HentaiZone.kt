@@ -169,6 +169,9 @@ abstract class HentaiZone : KeiSource() {
             .filter { it.startsWith("https://") || it.startsWith("http://") }
 
         val imageSelectors = listOf(
+            // Current Hentai Zone pages use the GFFolder gallery plugin.
+            ".gff-item img", ".gffolder img", "[class*=gffolder] img",
+            "[src*='/gffolder-cache/']", "[data-lazy-src*='/gffolder-cache/']",
             "#reader img", ".reader img", ".reading-content img", ".chapter-content img",
             ".entry-content img", ".comic-reader img", ".pages img", ".gallery img",
             "[class*=reader] img", "[id*=reader] img",
