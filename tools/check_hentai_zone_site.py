@@ -23,7 +23,7 @@ def fail(message):
 # Latest and search: REST API with AND terms and exclusions.
 query = urlencode({
     "categories[terms]": "342", "categories[operator]": "AND",
-    "categories_exclude": "920,617,926", "tags_exclude": "504,2000,2054",
+    "categories_exclude": "920,617,926", "tags_exclude": "418",
     "per_page": 5, "orderby": "date", "order": "desc",
     "_embed": "wp:featuredmedia",
     "_fields": "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded",

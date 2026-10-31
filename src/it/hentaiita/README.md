@@ -30,10 +30,9 @@ Molti titoli recenti mostrano nella scheda "Classic" immagini ospitate in `/area
 
 ## Contenuti esclusi
 
-Sono esclusi solo i contenuti che indicano esplicitamente minori, sia nelle richieste al sito sia sulle schede ricevute:
+Sono esclusi solo i contenuti che indicano esplicitamente bambini o preadolescenti, sia nelle richieste al sito sia sulle schede ricevute:
 
-- la categoria schoolgirls;
 - le serie con protagonisti bambini o alle medie: Sailor Moon (e le sue sottocategorie), Fantagenitori, Boruto, Doraemon, Ben 10, Gravity Falls;
-- i titoli che contengono parole come loli, shota, preteen, underage, minorenne, minori, bambina/bambino, child, liceale, elementari.
+- i titoli che contengono parole come loli, shota, preteen, underage, minorenne, minori, bambina/bambino, child, elementari.
 
-Queste voci non compaiono tra i filtri e non si possono riattivare. La categoria teen (18-19 anni) e i tag "school" e "scuola" restano visibili; si possono escludere a mano dai filtri.
+Queste voci non compaiono tra i filtri e non si possono riattivare. Teen, schoolgirls, school e scuola restano visibili, perché indicano spesso un costume o un'ambientazione e non l'età; si possono escludere a mano dai filtri.

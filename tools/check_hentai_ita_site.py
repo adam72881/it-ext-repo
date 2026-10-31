@@ -22,7 +22,7 @@ def fail(message):
 # Lists: REST API with AND categories, exclusions and the "best" picks.
 query = urlencode({
     "categories[terms]": "16", "categories[operator]": "AND",
-    "categories_exclude": "31,53,317", "per_page": 5, "orderby": "date", "order": "desc",
+    "categories_exclude": "145,53,317", "per_page": 5, "orderby": "date", "order": "desc",
     "_embed": "wp:featuredmedia",
     "_fields": "id,slug,link,title,date_gmt,class_list,_links.wp:featuredmedia,_embedded",
 })
@@ -33,7 +33,7 @@ if not posts or not headers.get("X-WP-TotalPages"):
 for post in posts:
     classes = post["class_list"]
     classes = classes.values() if isinstance(classes, dict) else classes
-    if "category-hentai-manga" not in classes or "category-schoolgirls" in classes or "category-mobile" in classes:
+    if "category-hentai-manga" not in classes or "category-sailor-moon" in classes or "category-mobile" in classes:
         fail("REST category filtering was ignored")
 print("REST listing:", headers.get("X-WP-Total"), "posts,", [p["slug"] for p in posts])
 

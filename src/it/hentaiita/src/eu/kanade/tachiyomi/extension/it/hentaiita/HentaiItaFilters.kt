@@ -45,11 +45,10 @@ val NON_READING_CATEGORIES = mapOf(
     317 to "mobile",
 )
 
-// Only labels that explicitly mean minors: the school-girl label and series
-// whose main characters are canonically children or middle-schoolers. Always
-// excluded, both from the requests and again on the returned entries.
+// Only labels that explicitly mean children or preteens: series whose main
+// characters are canonically children or middle-schoolers. Always excluded,
+// both from the requests and again on the returned entries.
 val BLOCKED_CATEGORIES = mapOf(
-    31 to "schoolgirls",
     145 to "sailor-moon",
     146 to "sailor-jupiter",
     204 to "sailor-mercury",
@@ -62,5 +61,5 @@ val BLOCKED_CATEGORIES = mapOf(
 )
 
 val BLOCKED_TEXT = Regex(
-    """(?i)\b(loli\w*|shota\w*|shotta\w*|preteen\w*|pre-teen\w*|underage|minorenn\w*|minori|bambin[aeio]|child(ren)?|toddler\w*|kodomo|liceal[ei]|elementari)\b""",
+    """(?i)\b(loli\w*|shota\w*|shotta\w*|preteen\w*|pre-teen\w*|underage|minorenn\w*|minori|bambin[aeio]|child(ren)?|toddler\w*|kodomo|elementari)\b""",
 )

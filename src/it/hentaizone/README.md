@@ -44,13 +44,12 @@ La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso 
 
 ## Contenuti esclusi
 
-Sono esclusi solo i contenuti che indicano esplicitamente minori, sia nelle richieste al sito sia sulle schede ricevute:
+Sono esclusi solo i contenuti che indicano esplicitamente bambini o preadolescenti, sia nelle richieste al sito sia sulle schede ricevute:
 
-- tag: school girl, liceale, uniforme scolastica, Fantagenitori;
-- la categoria Sailor Moon (protagoniste alle medie);
-- titoli che contengono loli, shota, preteen, underage, minorenne, bambina/bambino, liceale/liceali, elementari.
+- il tag Fantagenitori e la categoria Sailor Moon (protagonisti bambini o alle medie);
+- titoli che contengono loli, shota, preteen, underage, minorenne, bambina/bambino, elementari.
 
-Queste voci non compaiono tra i filtri e non si possono riattivare. La categoria Teen (18-19 anni) e i tag su università e studenti restano visibili; si possono escludere a mano dai filtri.
+Queste voci non compaiono tra i filtri e non si possono riattivare. Teen, school girl, liceale, uniforme scolastica e i tag su scuola e studenti restano visibili, perché indicano spesso un costume o un'ambientazione e non l'età; si possono escludere a mano dai filtri.
 
 Video (Video Hentai Sub Ita) e giochi non hanno pagine da leggere e sono esclusi.
 

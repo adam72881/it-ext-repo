@@ -55,21 +55,17 @@ val NON_READING_CATEGORIES = mapOf(
     1884 to "default_post",
 )
 
-// Only labels that explicitly mean minors: preteen/child keywords, school-girl
-// and high-school tags, and series whose main characters are canonically
-// children or middle-schoolers.
+// Only labels that explicitly mean children or preteens: child/preteen keywords
+// and series whose main characters are canonically children or middle-schoolers.
 // Always excluded, both from the requests and again on the returned cards.
 val BLOCKED_CATEGORIES = mapOf(
     367 to "sailor-moon",
 )
 
 val BLOCKED_TAGS = mapOf(
-    504 to "school-girl",
-    2000 to "uniforme-scolastica",
-    2054 to "liceale",
     418 to "fantagenitori",
 )
 
 val BLOCKED_TEXT = Regex(
-    """(?i)\b(loli\w*|shota\w*|preteen\w*|pre-teen\w*|underage|minorenn\w*|bambin[aeio]|liceal[ei]|elementari)\b""",
+    """(?i)\b(loli\w*|shota\w*|preteen\w*|pre-teen\w*|underage|minorenn\w*|bambin[aeio]|elementari)\b""",
 )
