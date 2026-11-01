@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 dist, changelog = Path(sys.argv[1]), Path(sys.argv[2]).read_text(encoding="utf-8")
-REPO_URL = "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/index.min.json"
+REPO_URL = "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/index.min.json"
 
 existing = set(subprocess.run(
     ["gh", "release", "list", "--limit", "200", "--json", "tagName", "--jq", ".[].tagName"],

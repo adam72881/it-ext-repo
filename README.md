@@ -19,7 +19,7 @@ Sorgenti hentai in italiano, compilate e firmate in automatico, pronte da aggiun
 Copia questo indirizzo:
 
 ```
-https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/index.min.json
+https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/index.min.json
 ```
 
 **Tachimanga (iPhone)** → Sfoglia → Estensioni → impostazioni → *Repository estensioni* → **+** → incolla l'indirizzo.
@@ -37,19 +37,19 @@ Poi torna in Estensioni, aggiorna l'elenco e installa quelle che vuoi.
     <th>Logo</th><th>Estensione</th><th>Sito</th><th>Contenuto</th>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png" width="44"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png" width="44"></td>
     <td><b>Hentai Zone</b></td>
     <td><a href="https://hentaizone.me">hentaizone.me</a></td>
     <td>Gratuito, con titoli Premium leggibili dopo l'accesso Patreon</td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png" width="44"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png" width="44"></td>
     <td><b>Hentai ITA</b></td>
     <td><a href="https://hentai-ita.net">hentai-ita.net</a></td>
     <td>Gratuito</td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png" width="44"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png" width="44"></td>
     <td><b>Hentai Archive</b></td>
     <td><a href="https://membri.premium-archive.com">area membri</a></td>
     <td>Richiede un abbonamento (accesso dalla WebView)</td>

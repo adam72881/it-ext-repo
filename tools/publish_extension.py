@@ -23,7 +23,7 @@ sys.path.insert(0, str(official_scripts.resolve()))
 from google.protobuf import json_format  # noqa: E402
 import index_pb2  # noqa: E402
 
-RAW_BASE = "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo"
+RAW_BASE = "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo"
 
 info = json.loads((build / "keiyoushi-source-info.json").read_text(encoding="utf-8"))
 pkg = info["packageName"]

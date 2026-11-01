@@ -1,8 +1,8 @@
 {
-  "index_v2": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/index.pb",
+  "index_v2": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/index.pb",
   "meta": {
     "name": "Manga ITA",
-    "website": "https://github.com/adam72881/it-ext-repo",
+    "website": "https://github.com/adam72881/manga-ita-extensions",
     "signingKeyFingerprint": "66c46c68b48766609a6840d9a844cad945515be920b5614a753e988f3599bc2f"
   }
 }
