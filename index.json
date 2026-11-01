@@ -3,7 +3,7 @@
   "badgeLabel": "EXT",
   "signingKey": "66c46c68b48766609a6840d9a844cad945515be920b5614a753e988f3599bc2f",
   "contact": {
-    "website": "https://github.com/adam72881/it-ext-repo"
+    "website": "https://github.com/adam72881/manga-ita-extensions"
   },
   "extensionList": {
     "extensions": [
@@ -11,9 +11,9 @@
         "name": "Hentai Archive",
         "packageName": "eu.kanade.tachiyomi.extension.it.hentaiarchiveita",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaiarchiveita-v1.6.6.apk",
-          "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaiarchiveita-v1.6.6.jar"
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaiarchiveita-v1.6.6.apk",
+          "iconUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png",
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaiarchiveita-v1.6.6.jar"
         },
         "extensionLib": "1.6",
         "versionCode": "106006",
@@ -32,9 +32,9 @@
         "name": "Hentai ITA",
         "packageName": "eu.kanade.tachiyomi.extension.it.hentaiita",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaiita-v1.6.9.apk",
-          "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaiita-v1.6.9.jar"
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaiita-v1.6.9.apk",
+          "iconUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png",
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaiita-v1.6.9.jar"
         },
         "extensionLib": "1.6",
         "versionCode": "106009",
@@ -53,9 +53,9 @@
         "name": "Hentai Zone",
         "packageName": "eu.kanade.tachiyomi.extension.it.hentaizone",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/apk/tachiyomi-it.hentaizone-v1.6.9.apk",
-          "iconUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/jar/tachiyomi-it.hentaizone-v1.6.9.jar"
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaizone-v1.6.9.apk",
+          "iconUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png",
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaizone-v1.6.9.jar"
         },
         "extensionLib": "1.6",
         "versionCode": "106009",

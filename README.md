@@ -5,7 +5,7 @@ Repository di un'estensione per lettori compatibili con Keiyoushi / Mihon / Tach
 ## Indirizzo da incollare
 
 ```
-https://raw.githubusercontent.com/adam72881/it-ext-repo/repo/index.min.json
+https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/index.min.json
 ```
 
 L'app, se segue il formato attuale, legge anche `repo.json` e `index.pb` nella stessa cartella.
