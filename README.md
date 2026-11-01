@@ -30,27 +30,40 @@ Poi torna in Estensioni, aggiorna l'elenco e installa quelle che vuoi.
 
 ---
 
+## Ultime novità
+
+- **1 novembre 2026 — Riorganizzazione.** Il repository si chiama ora **manga-ita-extensions** e in app compare come **«Manga ITA»**. Le estensioni anime/video per Mangayomi sono passate in un repo separato. Se avevi il vecchio link, sostituiscilo con quello qui sopra.
+- **Hentai Archive 1.6.6** — il lettore prende le pagine dal lettore del sito per gli abbonati; se il sito blocca il capitolo, l'errore lo dice.
+- **Hentai Zone 1.6.9 / Hentai ITA 1.6.9** — generi cliccabili e numero di pagine nei dettagli.
+
+Tutte le versioni: [CHANGELOG](CHANGELOG.md) · Stato tecnico e come continuare: [HANDOFF](HANDOFF.md)
+
+---
+
 ## Estensioni disponibili
 
 <table>
   <tr>
-    <th>Logo</th><th>Estensione</th><th>Sito</th><th>Contenuto</th>
+    <th>Logo</th><th>Estensione</th><th>Versione</th><th>Sito</th><th>Contenuto</th>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png" width="44"></td>
     <td><b>Hentai Zone</b></td>
+    <td>1.6.9</td>
     <td><a href="https://hentaizone.me">hentaizone.me</a></td>
     <td>Gratuito, con titoli Premium leggibili dopo l'accesso Patreon</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png" width="44"></td>
     <td><b>Hentai ITA</b></td>
+    <td>1.6.9</td>
     <td><a href="https://hentai-ita.net">hentai-ita.net</a></td>
     <td>Gratuito</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png" width="44"></td>
     <td><b>Hentai Archive</b></td>
+    <td>1.6.6</td>
     <td><a href="https://membri.premium-archive.com">area membri</a></td>
     <td>Richiede un abbonamento (accesso dalla WebView)</td>
   </tr>

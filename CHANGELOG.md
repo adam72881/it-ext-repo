@@ -1,5 +1,13 @@
 # Novità
 
+## Riorganizzazione del repository (1 novembre 2026)
+
+- Il repository è stato rinominato da `it-ext-repo` a **`manga-ita-extensions`**; in app il repository si chiama **«Manga ITA»**.
+- Nuovo indirizzo da usare in Tachimanga / Mihon: `https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/index.min.json`.
+- Le estensioni anime/video per Mangayomi sono ora nel repo [mangayomi-anime-extensions](https://github.com/adam72881/mangayomi-anime-extensions).
+- Tolti i rami non più usati (Instagram, rami di lavoro temporanei). Restano `main`, `repo` e i tre rami di build.
+- Nessun cambiamento alle estensioni: stesse versioni e stessa chiave di firma.
+
 ## Hentai Archive 1.6.6
 
 - Il lettore dell'app prende le pagine dal lettore del sito per gli abbonati (`data-comic-reader`): il link è l'immagine intera, altrimenti lo `srcset`.
