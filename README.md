@@ -1,6 +1,6 @@
 <div align="center">
 
-# it-ext
+# Manga ITA
 
 **Estensioni italiane per adulti per Mihon / Tachimanga**
 
@@ -9,6 +9,8 @@ Sorgenti hentai in italiano, compilate e firmate in automatico, pronte da aggiun
 🔞 Solo per maggiorenni · 🇮🇹 In italiano · 🔄 Aggiornate da sole
 
 </div>
+
+> Cerchi le estensioni **anime/video per Mangayomi**? Sono nel repo [mangayomi-anime-extensions](https://github.com/adam72881/mangayomi-anime-extensions).
 
 ---
 
