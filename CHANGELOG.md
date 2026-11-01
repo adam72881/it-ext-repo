@@ -1,5 +1,10 @@
 # Novità
 
+## Hentai Archive 1.6.6
+
+- Il lettore dell'app prende le pagine dal lettore del sito per gli abbonati (`data-comic-reader`): il link è l'immagine intera, altrimenti lo `srcset`.
+- Se il sito manda ancora il lucchetto, l'errore lo dice. L'accesso resta quello della WebView, sullo stesso indirizzo dell'area membri. L'estensione non aggira il controllo del sito.
+
 ## Generi cliccabili e numero pagine (Hentai Zone 1.6.9, Hentai ITA 1.6.9, Hentai Archive 1.6.5)
 
 - Toccando una categoria/tag nei dettagli parte la ricerca per quel genere (prima faceva solo una ricerca per testo).

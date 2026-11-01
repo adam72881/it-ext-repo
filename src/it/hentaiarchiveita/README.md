@@ -19,7 +19,7 @@ Dalla versione 1.6.3 l'estensione usa solo l'area membri. Il catalogo si sfoglia
 
 L'app condivide i cookie della WebView con la sorgente. La lettura rilegge sempre la pagina dal sito, senza cache, così dopo l'accesso funziona subito. Se l'accesso manca, o l'abbonamento non è attivo, l'errore lo dice. Nessun controllo del sito viene aggirato.
 
-Il formato delle pagine per gli abbonati non è stato verificato senza un account: l'estensione cerca le immagini nelle gallerie (`script.sgb-data`, `[data-images]`) e poi nel contenuto dell'articolo.
+Le pagine di un abbonato stanno nel lettore del sito (`[data-comic-reader] a[data-comic-page]`: il link è l'immagine intera, lo `srcset` è il ripiego), poi nelle gallerie (`script.sgb-data`, `[data-images]`) e nel contenuto dell'articolo. Senza la sessione il sito non le manda.
 
 ## Da dove arrivano i dati
 

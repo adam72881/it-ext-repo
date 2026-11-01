@@ -24,6 +24,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -205,17 +206,55 @@ abstract class HentaiArchive : KeiSource() {
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
+        // Same chapter URL the WebView opens, on baseUrl, with the app CookieJar.
         // Never reuse a cached copy: after logging in, the same URL must be read again.
         val doc = client.get(getChapterUrl(chapter), Fetch.DOCUMENT, CacheControl.FORCE_NETWORK).asJsoup()
-        val images = galleryImages(doc).ifEmpty { contentImages(doc) }
+        val images = comicReaderImages(doc).ifEmpty { galleryImages(doc) }.ifEmpty { contentImages(doc) }
         if (images.isNotEmpty()) return images.mapIndexed { index, image -> Page(index, imageUrl = image) }
 
-        val gated = doc.body().hasClass("members-gate-page") || doc.selectFirst("a[href*=patreon-flow]") != null
+        // The subscriber reader is the proof the site sent the pages. This theme
+        // does not always put `logged-in` on the body; the gate markup means the
+        // site withheld the chapter. Nothing here replaces that check.
+        val gated = doc.selectFirst("[data-comic-reader]") == null && (
+            doc.body().hasClass("members-gate-page") ||
+                doc.selectFirst("a[href*=patreon-flow], .patreon-lock") != null
+            )
         when {
             gated && !doc.body().hasClass("logged-in") -> throw IOException(LOGIN_REQUIRED)
             gated -> throw IOException(SUBSCRIPTION_REQUIRED)
-            else -> return emptyList()
+            else -> throw IOException(NO_PAGES)
         }
+    }
+
+    // Subscriber reader: the link is the full-res image, the img srcset is the fallback.
+    private fun comicReaderImages(doc: Document): List<String> = doc
+        .select("[data-comic-reader] a[data-comic-page]")
+        .mapNotNull { link ->
+            link.absUrl("href").takeIf { it.startsWith("http") }
+                ?: link.selectFirst("img")?.let { img -> srcsetUrl(img) ?: img.lazySrc() }
+        }
+        .map { it.toHttpUrl().toString() }
+        .distinct()
+
+    private fun srcsetUrl(img: Element): String? = img.attr("srcset")
+        .split(",")
+        .mapNotNull { candidate ->
+            val parts = candidate.trim().split(Regex("\\s+"), limit = 2)
+            val url = img.resolveUrl(parts.firstOrNull().orEmpty()) ?: return@mapNotNull null
+            val width = SRCSET_WIDTH.find(parts.getOrNull(1).orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            url to width
+        }
+        .maxByOrNull { it.second }
+        ?.first
+
+    private fun Element.lazySrc(): String? = listOf("data-src", "data-lazy-src", "src")
+        .firstNotNullOfOrNull { resolveUrl(attr(it)) }
+
+    private fun Element.resolveUrl(raw: String): String? {
+        val value = raw.trim()
+        if (value.isEmpty() || value.startsWith("data:")) return null
+        return runCatching { java.net.URI(baseUri()).resolve(value).toString() }.getOrNull()
+            ?.takeIf { it.startsWith("http") }
     }
 
     // Gallery plugins that keep the page list as JSON next to the gallery.
@@ -309,6 +348,7 @@ abstract class HentaiArchive : KeiSource() {
         private const val DETAIL_FIELDS = "id,slug,title,date_gmt,class_list,_links.wp:featuredmedia,_links.wp:term,_embedded"
 
         private val SLUG_NUMBER = Regex("""-(\d+)$""")
+        private val SRCSET_WIDTH = Regex("""(\d+)w""")
         private val SITE_IMAGE = Regex("""(?i)logo|favicon|avatar|banner|icon""")
         private val HIDDEN_GENRES = setOf("hentai", "fumetti", "uncategorized")
 
@@ -325,5 +365,7 @@ abstract class HentaiArchive : KeiSource() {
 
         private const val SUBSCRIPTION_REQUIRED =
             "Hai effettuato l'accesso, ma il sito non mostra le pagine: controlla che l'abbonamento sia attivo."
+
+        private const val NO_PAGES = "Il sito non ha mandato le pagine di questo capitolo."
     }
 }
