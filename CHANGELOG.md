@@ -1,5 +1,14 @@
 # Novità
 
+## Hentai ITA 1.6.10
+
+- La trama nella scheda tiene gli **a capo tra i paragrafi**, come sul sito (prima era tutta su una riga).
+- Meno richieste al sito: la pagina del titolo si scarica solo quando servono i dettagli, la ricerca degli altri capitoli della serie solo quando servono i capitoli. L'aggiornamento della libreria è più veloce.
+
+## Hentai Zone 1.6.10
+
+- La trama nella scheda tiene gli **a capo tra i paragrafi**, come sul sito (prima era tutta su una riga).
+
 ## Riorganizzazione del repository (1 novembre 2026)
 
 - Il repository è stato rinominato da `it-ext-repo` a **`manga-ita-extensions`**; in app il repository si chiama **«Manga ITA»**.

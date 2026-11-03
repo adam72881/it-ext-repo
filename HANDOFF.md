@@ -18,8 +18,8 @@ Le estensioni **anime/video per Mangayomi** non sono qui: stanno in
 
 | Estensione | Sito | Versione | Sorgente | `versionCode` |
 |---|---|---|---|---|
-| Hentai Zone | hentaizone.me | 1.6.9 | `src/it/hentaizone` | 9 |
-| Hentai ITA | hentai-ita.net | 1.6.9 | `src/it/hentaiita` | 9 |
+| Hentai Zone | hentaizone.me | 1.6.10 | `src/it/hentaizone` | 10 |
+| Hentai ITA | hentai-ita.net | 1.6.10 | `src/it/hentaiita` | 10 |
 | Hentai Archive | membri.premium-archive.com | 1.6.6 | `src/it/hentaiarchiveita` | 6 |
 
 La versione è `1.6.<versionCode>` (`libVersion = "1.6"` in `build.gradle.kts`).
@@ -59,7 +59,7 @@ Tieni i tre rami di build allineati a `main` (fast-forward).
 
 ## In sospeso
 
-- **Pull Request a Keiyoushi** [`keiyoushi/extensions-source#20586`](https://github.com/keiyoushi/extensions-source/pull/20586) (Hentai Zone + Hentai ITA, `versionCode = 1` sul fork `adam72881/extensions-source`, ramo `add-hentai-zone-ita`). CI verde, in attesa di review. Se un maintainer chiede modifiche: correggi sul fork e fai push sullo stesso ramo.
+- **Pull Request a Keiyoushi**, una per sorgente (la #20586 è stata chiusa e divisa come chiesto dal revisore): [#20648 Hentai ITA](https://github.com/keiyoushi/extensions-source/pull/20648) (ramo `add-hentai-ita`) e [#20649 Hentai Zone](https://github.com/keiyoushi/extensions-source/pull/20649) (ramo `add-hentai-zone`) sul fork `adam72881/extensions-source`. Sono versioni **semplificate** su richiesta del revisore (niente raggruppamento per titolo, niente numero di pagine, Popolari con una sola richiesta). 3 novembre: applicate le seconde richieste (icona stile generatore, `wholeText()`, helper JSON, Hentai Zone scarica la pagina solo per i capitoli). Se chiede altro: correggi sul ramo e fai push, la PR si aggiorna.
 - Nessun bug noto aperto sulle tre estensioni.
 
 ## Storia

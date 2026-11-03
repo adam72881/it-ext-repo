@@ -25,7 +25,7 @@ class PostDto(
     val plainTitle: String get() = Parser.unescapeEntities(title.rendered, false)
 
     // The post text around the gallery: a synopsis on some posts.
-    val contentText: String get() = content?.rendered?.let { Jsoup.parseBodyFragment(it).text() }.orEmpty()
+    val contentText: String get() = content?.rendered?.let { Jsoup.parseBodyFragment(it).wholeText() }.orEmpty()
 
     val classList: List<String>
         get() = when (val classes = classListJson) {

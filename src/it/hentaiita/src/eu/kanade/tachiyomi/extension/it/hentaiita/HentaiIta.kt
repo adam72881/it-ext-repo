@@ -170,26 +170,30 @@ abstract class HentaiIta : KeiSource() {
         if (!isAllowed(post.classList, post.plainTitle)) {
             throw IOException("Questo titolo è escluso dall'estensione.")
         }
-        val series = seriesChapters(post, manga.url)
-        val pageDoc = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
-        val pageCount = galleryImages(pageDoc).ifEmpty { contentImages(pageDoc) }.count { PREMIUM_PATH !in it }
-
-        manga.apply {
-            title = post.plainTitle
-            post.thumbnail?.let { thumbnail_url = it }
-            genre = post.terms
-                .filter { it.slug !in HIDDEN_GENRES }
-                .joinToString { it.plainName }
-            description = listOfNotNull(
-                pageCount.takeIf { it > 0 }?.let { "Pagine: $it" },
-                synopsis(post.contentText),
-            ).joinToString("\n\n").ifEmpty { null }
-            status = SManga.COMPLETED
-            // A series gets new chapters; a one-shot never changes.
-            update_strategy = if (series.isEmpty()) UpdateStrategy.ONLY_FETCH_ONCE else UpdateStrategy.ALWAYS_UPDATE
+        // The page (for the page count) is only needed for the details, the series
+        // search only for the chapters: each runs only when it is asked for.
+        if (fetchDetails) {
+            val pageDoc = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
+            val pageCount = galleryImages(pageDoc).ifEmpty { contentImages(pageDoc) }.count { PREMIUM_PATH !in it }
+            manga.apply {
+                title = post.plainTitle
+                post.thumbnail?.let { thumbnail_url = it }
+                genre = post.terms
+                    .filter { it.slug !in HIDDEN_GENRES }
+                    .joinToString { it.plainName }
+                description = listOfNotNull(
+                    pageCount.takeIf { it > 0 }?.let { "Pagine: $it" },
+                    synopsis(post.contentText),
+                ).joinToString("\n\n").ifEmpty { null }
+                status = SManga.COMPLETED
+            }
         }
+        if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
-        val chapters = series.ifEmpty {
+        val series = seriesChapters(post, manga.url)
+        // A series gets new chapters; a one-shot never changes.
+        manga.update_strategy = if (series.isEmpty()) UpdateStrategy.ONLY_FETCH_ONCE else UpdateStrategy.ALWAYS_UPDATE
+        val newChapters = series.ifEmpty {
             listOf(
                 SChapter.create().apply {
                     url = manga.url
@@ -199,7 +203,7 @@ abstract class HentaiIta : KeiSource() {
                 },
             )
         }
-        return SMangaUpdate(manga, chapters)
+        return SMangaUpdate(manga, newChapters)
     }
 
     // The other chapters of the series: posts found by searching the base
@@ -319,11 +323,16 @@ abstract class HentaiIta : KeiSource() {
     // lines: keep what comes before the first promotional line.
     private fun synopsis(text: String): String? {
         val cleaned = text
-            .replace(SPACES, " ")
             .replace(SHORTCODE, " ")
             .replace(LONG_TOKEN, " ")
         val end = PROMO_START.find(cleaned)?.range?.first ?: cleaned.length
-        return cleaned.substring(0, end).replace(SPACES, " ").trim().takeIf { it.length >= MIN_DESCRIPTION }
+        return cleaned.substring(0, end)
+            .lines()
+            .map { it.replace(SPACES, " ").trim() }
+            .joinToString("\n")
+            .replace(BLANK_LINES, "\n\n")
+            .trim()
+            .takeIf { it.length >= MIN_DESCRIPTION }
     }
 
     private fun isAllowed(classes: Collection<String>, title: String): Boolean = classes.none { it in BLOCKED_CLASSES } && !BLOCKED_TEXT.containsMatchIn(title)
@@ -349,7 +358,8 @@ abstract class HentaiIta : KeiSource() {
 
         private val SHORTCODE = Regex("""\[/?[a-z_]+[^\]]*]""")
         private val LONG_TOKEN = Regex("""\S{30,}""")
-        private val SPACES = Regex("""[\s\u00A0]+""")
+        private val SPACES = Regex("""[ \t\u00A0]+""")
+        private val BLANK_LINES = Regex("""\n{3,}""")
         private val PROMO_START = Regex(
             """hentai (ita )?premium|nella nostra nuova area premium|volume completo|capitoli (successivi|precedenti)|i fumetti e i videogiochi della no safe zone""",
             RegexOption.IGNORE_CASE,

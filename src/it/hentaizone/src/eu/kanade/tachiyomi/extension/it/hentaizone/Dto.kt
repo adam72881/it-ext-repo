@@ -21,7 +21,14 @@ class PostDto(
     val plainTitle: String get() = Parser.unescapeEntities(title.rendered, false)
 
     // The post text around the gallery: a synopsis on some posts.
-    val contentText: String get() = content?.rendered?.let { Jsoup.parseBodyFragment(it).text() }.orEmpty()
+    val contentText: String
+        get() = content?.rendered
+            ?.let { Jsoup.parseBodyFragment(it).wholeText() }
+            ?.lines()
+            ?.joinToString("\n") { it.trim() }
+            ?.replace(BLANK_LINES, "\n\n")
+            ?.trim()
+            .orEmpty()
 
     val terms: List<TermDto> get() = embedded?.terms.orEmpty().flatten()
 
@@ -77,3 +84,5 @@ class FilterDataDto(
 
 @Serializable
 class GalleryImageDto(val src: String)
+
+private val BLANK_LINES = Regex("""\n{3,}""")
