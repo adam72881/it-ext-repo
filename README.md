@@ -34,6 +34,7 @@ Poi torna in Estensioni, aggiorna l'elenco e installa quelle che vuoi.
 
 - **1 novembre 2026 — Riorganizzazione.** Il repository si chiama ora **manga-ita-extensions** e in app compare come **«Manga ITA»**. Le estensioni anime/video per Mangayomi sono passate in un repo separato. Se avevi il vecchio link, sostituiscilo con quello qui sopra.
 - **Hentai Archive 1.6.6** — il lettore prende le pagine dal lettore del sito per gli abbonati; se il sito blocca il capitolo, l'errore lo dice.
+- **Hentai Zone 1.6.10 / Hentai ITA 1.6.10** — trama con gli a capo come sul sito; Hentai ITA fa meno richieste.
 - **Hentai Zone 1.6.9 / Hentai ITA 1.6.9** — generi cliccabili e numero di pagine nei dettagli.
 
 Tutte le versioni: [CHANGELOG](CHANGELOG.md) · Stato tecnico e come continuare: [HANDOFF](HANDOFF.md)
@@ -49,14 +50,14 @@ Tutte le versioni: [CHANGELOG](CHANGELOG.md) · Stato tecnico e come continuare:
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png" width="44"></td>
     <td><b>Hentai Zone</b></td>
-    <td>1.6.9</td>
+    <td>1.6.10</td>
     <td><a href="https://hentaizone.me">hentaizone.me</a></td>
     <td>Gratuito, con titoli Premium leggibili dopo l'accesso Patreon</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png" width="44"></td>
     <td><b>Hentai ITA</b></td>
-    <td>1.6.9</td>
+    <td>1.6.10</td>
     <td><a href="https://hentai-ita.net">hentai-ita.net</a></td>
     <td>Gratuito</td>
   </tr>
