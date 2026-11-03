@@ -32,13 +32,13 @@
         "name": "Hentai ITA",
         "packageName": "eu.kanade.tachiyomi.extension.it.hentaiita",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaiita-v1.6.10.apk",
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaiita-v1.6.11.apk",
           "iconUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiita.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaiita-v1.6.10.jar"
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaiita-v1.6.11.jar"
         },
         "extensionLib": "1.6",
-        "versionCode": "106010",
-        "versionName": "1.6.10",
+        "versionCode": "106011",
+        "versionName": "1.6.11",
         "contentWarning": "CONTENT_WARNING_NSFW",
         "sources": [
           {
