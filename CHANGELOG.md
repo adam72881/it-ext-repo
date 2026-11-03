@@ -1,5 +1,13 @@
 # Novità
 
+## Hentai ITA 1.6.11
+
+- **Icona nuova**: quadrato con angoli arrotondati e margine, nello stile delle altre estensioni (si vede meglio anche con il tema scuro).
+
+## Hentai Zone 1.6.11
+
+- **Icona nuova**: quadrato con angoli arrotondati e margine, nello stile delle altre estensioni (si vede meglio anche con il tema scuro).
+
 ## Hentai ITA 1.6.10
 
 - La trama nella scheda tiene gli **a capo tra i paragrafi**, come sul sito (prima era tutta su una riga).
