@@ -20,7 +20,7 @@ Le estensioni **anime/video per Mangayomi** non sono qui: stanno in
 |---|---|---|---|---|
 | Hentai Zone | hentaizone.me | 1.6.12 | `src/it/hentaizone` | 12 |
 | Hentai ITA | hentai-ita.net | 1.6.11 | `src/it/hentaiita` | 11 |
-| Hentai Archive | membri.premium-archive.com | 1.6.6 | `src/it/hentaiarchiveita` | 6 |
+| Hentai Archive | membri.premium-archive.com + hentai-archive.com (free) | 1.6.7 | `src/it/hentaiarchiveita` | 7 |
 
 La versione è `1.6.<versionCode>` (`libVersion = "1.6"` in `build.gradle.kts`).
 
@@ -54,6 +54,7 @@ Tieni i tre rami di build allineati a `main` (fast-forward).
 ## Regole da rispettare
 
 - Contenuti che indicano esplicitamente bambini o preadolescenti sempre esclusi (`BLOCKED_*` in `Filters.kt` / `Dto.kt`). Teen, school girl e cosplay restano visibili: è stata una richiesta esplicita dell'utente.
+- Hentai Archive 1.6.7: la Sezione «Sito free» legge **hentai-archive.com** (gratis). API REST bloccate (403): HTML. Lista `/category/hentai-recenti/page/N/` (9 per pagina, `a.entire-meta-link`), ricerca `/page/N/?s=testo&category_name=hentai-recenti` (`article.result h2.title a`). Pagine = `article img` dal CDN `picsarchive*.b-cdn.net`, che vuole il post come Referer (`getImageRequest` con `Fetch.IMAGE.from(post)`): senza dà 403. Gli URL dei titoli free sono completi (`https://www.hentai-archive.com/slug/`), per questo `getMangaUrl/getChapterUrl` sono ridefiniti. Esiste anche un'estensione ufficiale Keiyoushi «HentaiArchive» per lo stesso sito.
 - Hentai Archive: l'area membri richiede un abbonamento. L'estensione usa la sessione della WebView e **non aggira** il controllo del sito.
 - Niente bypass di Cloudflare o anti-bot.
 

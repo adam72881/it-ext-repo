@@ -1,5 +1,10 @@
 # Novità
 
+## Hentai Archive 1.6.7
+
+- Nuova voce **Sezione → Sito free (hentai-archive.com, gratis)**: i fumetti del sito gratuito di Hentai Archive (circa 1.500), dal più recente, con ricerca per testo. **Si leggono senza abbonamento.**
+- Nella scheda: generi del sito, data di uscita e un capitolo con tutte le pagine.
+
 ## Hentai Zone 1.6.12
 
 - **Più recenti** e **Popolari** mostrano **tutti i fumetti** (manga hentai, doujinshi e fumetti porno), non più solo i manga hentai. Anche il filtro **Sezione** parte da «Tutti i fumetti».

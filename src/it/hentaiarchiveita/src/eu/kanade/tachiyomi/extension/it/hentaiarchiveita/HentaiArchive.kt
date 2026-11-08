@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import keiyoushi.annotation.Source
 import keiyoushi.network.Fetch
+import keiyoushi.network.fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -23,6 +24,7 @@ import okhttp3.CacheControl
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.io.IOException
@@ -59,6 +61,7 @@ abstract class HentaiArchive : KeiSource() {
             includedTags = tags.filter { it.state == Filter.TriState.STATE_INCLUDE }.map { it.id },
             excludedTags = tags.filter { it.state == Filter.TriState.STATE_EXCLUDE }.map { it.id },
         )
+        if (search.section.free) return freeListing(page, search.text)
         // A tapped genre arrives as a plain query with no tag filters: browse that tag.
         if (search.text.isNotEmpty() && tags.all { it.state == Filter.TriState.STATE_IGNORE }) {
             resolveTag(search.text)?.let { id ->
@@ -79,7 +82,16 @@ abstract class HentaiArchive : KeiSource() {
             .firstOrNull { it.plainName.equals(name, ignoreCase = true) }?.id
     }
 
+    // Titoli del sito free: l'URL salvato è completo (https://www.hentai-archive.com/…).
+    override fun getMangaUrl(manga: SManga): String = if (manga.url.startsWith("http")) manga.url else baseUrl + manga.url
+
+    override fun getChapterUrl(chapter: SChapter): String = if (chapter.url.startsWith("http")) chapter.url else baseUrl + chapter.url
+
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host == FREE_HOST || url.host == FREE_HOST.removePrefix("www.")) {
+            val slug = url.pathSegments.singleOrNull { it.isNotEmpty() } ?: return null
+            return SManga.create().apply { this.url = "$FREE_BASE/$slug/" }.also { freeDetails(it) }
+        }
         if (url.host != baseUrl.toHttpUrl().host) return null
         val slug = url.pathSegments.singleOrNull { it.isNotEmpty() } ?: return null
         return fetchPost(slug)?.takeIf { isAllowed(it) }?.toSManga()
@@ -136,6 +148,7 @@ abstract class HentaiArchive : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
+        if (manga.url.startsWith(FREE_BASE)) return freeUpdate(manga, chapters, fetchDetails, fetchChapters)
         val slug = manga.url.trim('/').substringAfterLast('/')
         val post = fetchPost(slug, details = true) ?: throw IOException("Titolo non trovato su Hentai Archive Premium.")
         if (!isAllowed(post)) throw IOException("Questo titolo è escluso dall'estensione.")
@@ -205,7 +218,99 @@ abstract class HentaiArchive : KeiSource() {
         }.asReversed()
     }
 
+    // --- Sito free (hentai-archive.com) ---
+    // Il sito blocca le API: si leggono le pagine HTML. Ogni post è un fumetto con
+    // tutte le pagine nel contenuto; le immagini (CDN) vogliono il post come Referer.
+
+    private suspend fun freeListing(page: Int, text: String): MangasPage {
+        val url = if (text.isEmpty()) {
+            "$FREE_BASE/category/$FREE_CATEGORY/" + if (page > 1) "page/$page/" else ""
+        } else {
+            (if (page > 1) "$FREE_BASE/page/$page/" else "$FREE_BASE/").toHttpUrl().newBuilder()
+                .addQueryParameter("s", text)
+                .addQueryParameter("category_name", FREE_CATEGORY)
+                .build().toString()
+        }
+        val doc = client.get(url, Fetch.DOCUMENT).asJsoup()
+        val mangas = doc.select("article").mapNotNull { card ->
+            val link = card.selectFirst("a.entire-meta-link[href], h2.title a[href], h2 a[href], h3 a[href]") ?: return@mapNotNull null
+            val href = link.absUrl("href").takeIf { it.startsWith(FREE_BASE) } ?: return@mapNotNull null
+            val title = (card.selectFirst("a.entire-meta-link .screen-reader-text")?.text() ?: link.ownText()).trim()
+            if (title.isEmpty() || BLOCKED_TEXT.containsMatchIn(title)) return@mapNotNull null
+            SManga.create().apply {
+                this.url = href
+                this.title = title
+                thumbnail_url = card.selectFirst("img")?.let { img ->
+                    img.attr("data-nectar-img-src").ifEmpty { null } ?: srcsetUrl(img) ?: img.lazySrc()
+                }
+            }
+        }
+        val hasNext = doc.selectFirst("a[href*=/page/${page + 1}/]") != null
+        return MangasPage(mangas, hasNext && mangas.isNotEmpty())
+    }
+
+    private suspend fun freeDetails(manga: SManga): Document {
+        val doc = client.get(manga.url, Fetch.DOCUMENT).asJsoup()
+        val article = doc.selectFirst("article")
+        manga.title = doc.selectFirst("h1.entry-title, h1")?.text()?.trim().orEmpty().ifEmpty { manga.title }
+        if (manga.thumbnail_url.isNullOrEmpty()) manga.thumbnail_url = freeImages(doc).firstOrNull()
+        manga.genre = article?.classNames().orEmpty()
+            .filter { it.startsWith("category-") && it != "category-$FREE_CATEGORY" }
+            .map { freeGenreName(it.removePrefix("category-")) }
+            .distinct()
+            .joinToString()
+        val next = doc.selectFirst("article a[href^=$FREE_BASE]:not([href*=/category/]):not([href*=/tag/])")
+        manga.description = listOfNotNull(
+            "Hentai Archive gratis (hentai-archive.com): si legge senza abbonamento.",
+            next?.let { "Capitolo successivo: cercalo nella sezione «Sito free» (${it.text().trim().ifEmpty { "nuovi capitoli" }})." },
+        ).joinToString("\n\n")
+        manga.status = SManga.COMPLETED
+        manga.update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
+        return doc
+    }
+
+    private suspend fun freeUpdate(manga: SManga, chapters: List<SChapter>, fetchDetails: Boolean, fetchChapters: Boolean): SMangaUpdate {
+        val doc = if (fetchDetails) freeDetails(manga) else client.get(manga.url, Fetch.DOCUMENT).asJsoup()
+        if (!fetchChapters) return SMangaUpdate(manga, chapters)
+        val published = FREE_DATE.find(doc.html())?.groupValues?.get(1)
+        val chapter = SChapter.create().apply {
+            url = manga.url
+            name = "Capitolo unico"
+            chapter_number = 1f
+            date_upload = DATE_FORMAT.tryParse(published)
+        }
+        return SMangaUpdate(manga, listOf(chapter))
+    }
+
+    private fun freeImages(doc: Document): List<String> {
+        val content = doc.selectFirst("article") ?: return emptyList()
+        return content.select("img")
+            .mapNotNull { it.lazySrc() }
+            .filterNot { SITE_IMAGE.containsMatchIn(it) || "/wp-content/" in it }
+            .distinct()
+    }
+
+    // «hentai-milf» → «Milf», «ahegao-hentai-recenti» → «Ahegao».
+    private fun freeGenreName(slug: String): String = slug
+        .removePrefix("hentai-ita-").removePrefix("hentai-").removeSuffix("-hentai-recenti").removeSuffix("-hentai")
+        .split('-').joinToString(" ") { part -> part.replaceFirstChar { it.titlecase(Locale.ITALIAN) } }
+
+    override fun getImageRequest(page: Page): Request {
+        val from = page.url.takeIf { it.startsWith(FREE_BASE) } ?: return super.getImageRequest(page)
+        return Request.Builder()
+            .url(page.imageUrl!!)
+            .headers(headers)
+            .fetch(Fetch.IMAGE.from(from))
+            .build()
+    }
+
     override suspend fun getPageList(chapter: SChapter): List<Page> {
+        if (chapter.url.startsWith(FREE_BASE)) {
+            val doc = client.get(chapter.url, Fetch.DOCUMENT).asJsoup()
+            val images = freeImages(doc)
+            if (images.isEmpty()) throw IOException(NO_PAGES)
+            return images.mapIndexed { index, image -> Page(index, url = chapter.url, imageUrl = image) }
+        }
         // Same chapter URL the WebView opens, on baseUrl, with the app CookieJar.
         // Never reuse a cached copy: after logging in, the same URL must be read again.
         val doc = client.get(getChapterUrl(chapter), Fetch.DOCUMENT, CacheControl.FORCE_NETWORK).asJsoup()
@@ -323,7 +428,7 @@ abstract class HentaiArchive : KeiSource() {
                     )
                 }
                 add(Filter.Separator())
-                add(Filter.Header("Per leggere serve un abbonamento: accedi dalla WebView (icona del mappamondo). Popolari è in ordine casuale."))
+                add(Filter.Header("Per leggere serve un abbonamento: accedi dalla WebView (icona del mappamondo). Sezione «Sito free»: fumetti gratis di hentai-archive.com, senza abbonamento (lì vale solo la ricerca per testo). Popolari è in ordine casuale."))
             },
         )
     }
@@ -341,6 +446,10 @@ abstract class HentaiArchive : KeiSource() {
 
     companion object {
         private const val PAGE_SIZE = 24
+        private const val FREE_HOST = "www.hentai-archive.com"
+        private const val FREE_BASE = "https://$FREE_HOST"
+        private const val FREE_CATEGORY = "hentai-recenti"
+        private val FREE_DATE = Regex(""""datePublished":"([0-9T:-]{19})""")
         private const val TAG_PAGES = 2
         private const val MIN_TAG_COUNT = 3
 

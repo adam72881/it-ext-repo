@@ -32,6 +32,7 @@ Poi torna in Estensioni, aggiorna l'elenco e installa quelle che vuoi.
 
 ## Ultime novità
 
+- **Hentai Archive 1.6.7** — sezione «Sito free»: i fumetti gratuiti di hentai-archive.com, senza abbonamento.
 - **Hentai Zone 1.6.12** — Più recenti e Popolari con tutti i fumetti, non solo i manga hentai.
 - **1 novembre 2026 — Riorganizzazione.** Il repository si chiama ora **manga-ita-extensions** e in app compare come **«Manga ITA»**. Le estensioni anime/video per Mangayomi sono passate in un repo separato. Se avevi il vecchio link, sostituiscilo con quello qui sopra.
 - **Hentai Archive 1.6.6** — il lettore prende le pagine dal lettore del sito per gli abbonati; se il sito blocca il capitolo, l'errore lo dice.
@@ -66,7 +67,7 @@ Tutte le versioni: [CHANGELOG](CHANGELOG.md) · Stato tecnico e come continuare:
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaiarchiveita.png" width="44"></td>
     <td><b>Hentai Archive</b></td>
-    <td>1.6.6</td>
+    <td>1.6.7</td>
     <td><a href="https://membri.premium-archive.com">area membri</a></td>
     <td>Richiede un abbonamento (accesso dalla WebView)</td>
   </tr>

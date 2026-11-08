@@ -15,7 +15,7 @@ class SortFilter(selection: Filter.Sort.Selection = Filter.Sort.Selection(0, fal
     val ascending: Boolean get() = state?.ascending ?: false
 }
 
-class Section(val label: String, val id: Int?)
+class Section(val label: String, val id: Int?, val free: Boolean = false)
 
 class SectionFilter : Filter.Select<String>("Sezione", SECTIONS.map { it.label }.toTypedArray()) {
     val section: Section get() = SECTIONS[state]
@@ -29,6 +29,8 @@ val SECTIONS = listOf(
     Section("Tutto (manga e fumetti)", null),
     Section("Hentai manga", 1),
     Section("Fumetti porno", 6),
+    // Il sito gratuito hentai-archive.com: pagine pubbliche, nessun abbonamento.
+    Section("Sito free (hentai-archive.com, gratis)", null, free = true),
 )
 
 // Videos and games have no pages to read.
