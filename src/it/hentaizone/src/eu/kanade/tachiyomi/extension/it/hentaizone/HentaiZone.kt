@@ -157,17 +157,32 @@ abstract class HentaiZone : KeiSource() {
     // Two archive pages per app page: the cards dropped by the exclusions would
     // otherwise leave short or empty pages, and an empty page stops paging.
     private suspend fun popularListing(page: Int, query: Query): MangasPage = coroutineScope {
-        val first = async { client.get(popularUrl(page * 2 - 1, query), Fetch.DOCUMENT).asJsoup() }
-        val second = async { client.get(popularUrl(page * 2, query), Fetch.DOCUMENT).asJsoup() }
+        val first = async { archivePage(popularUrl(page * 2 - 1, query)) }
+        val second = async { archivePage(popularUrl(page * 2, query)) }
         val firstDoc = first.await()
         val secondDoc = second.await()
 
-        val cards = (parseCards(firstDoc) + parseCards(secondDoc))
+        val cards = listOfNotNull(firstDoc, secondDoc).flatMap(::parseCards)
             .filter { card -> card.isAllowedFor(query) }
             .distinctBy { it.slug }
         val covers = fetchMissingCovers(cards)
         val mangas = cards.map { it.toSManga(it.thumbnail ?: covers[it.slug]) }
-        MangasPage(mangas, hasNextArchivePage(secondDoc, page * 2))
+        MangasPage(mangas, secondDoc != null && hasNextArchivePage(secondDoc, page * 2))
+    }
+
+    // An archive page past the last one is a 404: with an odd number of pages
+    // the second page of the pair does not exist.
+    private suspend fun archivePage(url: HttpUrl): Document? {
+        val response = client.get(url, Fetch.DOCUMENT, ensureSuccess = false)
+        if (response.code == 404) {
+            response.close()
+            return null
+        }
+        if (!response.isSuccessful) {
+            response.close()
+            throw IOException("HTTP error ${response.code}")
+        }
+        return response.asJsoup()
     }
 
     // The theme's own archive template (used without a category) has no images.

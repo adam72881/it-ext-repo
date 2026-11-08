@@ -32,6 +32,7 @@ Poi torna in Estensioni, aggiorna l'elenco e installa quelle che vuoi.
 
 ## Ultime novità
 
+- **Hentai Zone 1.6.13** — niente più «Something went wrong» in fondo a Popolari con alcuni tag (es. «esibizionista»).
 - **Hentai Archive 1.6.7** — sezione «Sito free»: i fumetti gratuiti di hentai-archive.com, senza abbonamento.
 - **Hentai Zone 1.6.12** — Più recenti e Popolari con tutti i fumetti, non solo i manga hentai.
 - **1 novembre 2026 — Riorganizzazione.** Il repository si chiama ora **manga-ita-extensions** e in app compare come **«Manga ITA»**. Le estensioni anime/video per Mangayomi sono passate in un repo separato. Se avevi il vecchio link, sostituiscilo con quello qui sopra.
@@ -53,7 +54,7 @@ Tutte le versioni: [CHANGELOG](CHANGELOG.md) · Stato tecnico e come continuare:
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png" width="44"></td>
     <td><b>Hentai Zone</b></td>
-    <td>1.6.12</td>
+    <td>1.6.13</td>
     <td><a href="https://hentaizone.me">hentaizone.me</a></td>
     <td>Gratuito, con titoli Premium leggibili dopo l'accesso Patreon</td>
   </tr>

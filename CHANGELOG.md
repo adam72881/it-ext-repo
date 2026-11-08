@@ -1,5 +1,9 @@
 # Novità
 
+## Hentai Zone 1.6.13
+
+- Corretto l'errore **«Something went wrong»** scorrendo **Popolari** con alcuni tag o categorie (per esempio «esibizionista»): quando il sito aveva un numero dispari di pagine, l'ultima pagina richiesta non esisteva. Ora la lista finisce normalmente.
+
 ## Hentai Archive 1.6.7
 
 - Nuova voce **Sezione → Sito free (hentai-archive.com, gratis)**: i fumetti del sito gratuito di Hentai Archive (circa 1.500), dal più recente, con ricerca per testo. **Si leggono senza abbonamento.**
