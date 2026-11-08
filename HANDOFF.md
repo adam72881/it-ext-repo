@@ -58,9 +58,13 @@ Tieni i tre rami di build allineati a `main` (fast-forward).
 - Hentai Archive: l'area membri richiede un abbonamento. L'estensione usa la sessione della WebView e **non aggira** il controllo del sito.
 - Niente bypass di Cloudflare o anti-bot.
 
+## Build: download che falliscono (8 novembre 2026)
+
+`build-extension.yml` ha due passi prima della build: **Download Gradle** (timeout 120 s, poi services.gradle.org → downloads.gradle.org → GitHub releases; ultima riserva il mirror Tencent **solo** con `distributionSha256Sum` ufficiale, così il wrapper rifiuta file diversi) e **Use the Maven Central mirror** (mirror Google di Maven Central prima di `mavenCentral()` nei due `settings.gradle.kts`). Motivo: in quel giorno i download dai file delle release GitHub davano 504, e Maven Central rimanda lì alcuni jar (compilatore Kotlin).
+
 ## In sospeso
 
-- **Pull Request a Keiyoushi**, una per sorgente (la #20586 è stata chiusa e divisa come chiesto dal revisore): [#20648 Hentai ITA](https://github.com/keiyoushi/extensions-source/pull/20648) (ramo `add-hentai-ita`) e [#20649 Hentai Zone](https://github.com/keiyoushi/extensions-source/pull/20649) (ramo `add-hentai-zone`) sul fork `adam72881/extensions-source`. Sono versioni **semplificate** su richiesta del revisore (niente raggruppamento per titolo, niente numero di pagine, Popolari con una sola richiesta). 3 novembre: applicate le seconde richieste (icona stile generatore, `wholeText()`, helper JSON, Hentai Zone scarica la pagina solo per i capitoli). Se chiede altro: correggi sul ramo e fai push, la PR si aggiorna.
+- **Pull Request a Keiyoushi: ACCETTATE** (#20648 Hentai ITA, #20649 Hentai Zone, versioni semplificate nel repo ufficiale). Storia: una per sorgente (la #20586 è stata chiusa e divisa come chiesto dal revisore): [#20648 Hentai ITA](https://github.com/keiyoushi/extensions-source/pull/20648) (ramo `add-hentai-ita`) e [#20649 Hentai Zone](https://github.com/keiyoushi/extensions-source/pull/20649) (ramo `add-hentai-zone`) sul fork `adam72881/extensions-source`. Sono versioni **semplificate** su richiesta del revisore (niente raggruppamento per titolo, niente numero di pagine, Popolari con una sola richiesta). 3 novembre: applicate le seconde richieste (icona stile generatore, `wholeText()`, helper JSON, Hentai Zone scarica la pagina solo per i capitoli). Se chiede altro: correggi sul ramo e fai push, la PR si aggiorna.
 - Nessun bug noto aperto sulle tre estensioni.
 
 ## Storia
