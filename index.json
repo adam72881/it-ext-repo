@@ -53,13 +53,13 @@
         "name": "Hentai Zone",
         "packageName": "eu.kanade.tachiyomi.extension.it.hentaizone",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaizone-v1.6.11.apk",
+          "apkUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/apk/tachiyomi-it.hentaizone-v1.6.12.apk",
           "iconUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/icon/eu.kanade.tachiyomi.extension.it.hentaizone.png",
-          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaizone-v1.6.11.jar"
+          "jarUrl": "https://raw.githubusercontent.com/adam72881/manga-ita-extensions/repo/jar/tachiyomi-it.hentaizone-v1.6.12.jar"
         },
         "extensionLib": "1.6",
-        "versionCode": "106011",
-        "versionName": "1.6.11",
+        "versionCode": "106012",
+        "versionName": "1.6.12",
         "contentWarning": "CONTENT_WARNING_NSFW",
         "sources": [
           {
