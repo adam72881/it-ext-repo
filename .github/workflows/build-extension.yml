@@ -78,18 +78,24 @@ jobs:
 
       # services.gradle.org at times answers the runners slowly and the wrapper gives up
       # after 10 s: longer timeout and a few tries just for the Gradle download.
+      # services.gradle.org at times answers the runners slowly or with 504 and the wrapper
+      # gives up. Longer timeout, then the other official Gradle download hosts.
+      # Only official hosts: the wrapper here does not check a checksum.
       - name: Download Gradle
         working-directory: keiyoushi
         run: |
           props=gradle/wrapper/gradle-wrapper.properties
           sed -i 's/^networkTimeout=.*/networkTimeout=120000/' "$props"
-          for attempt in 1 2 3 4; do
-            ./gradlew --no-daemon --version && exit 0
-            # services.gradle.org only redirects to the GitHub release of the same file:
-            # when it fails (504), download from GitHub directly.
-            sed -i -E 's#^distributionUrl=.*/gradle-([0-9.]+)-(bin|all)\.zip#distributionUrl=https\\://github.com/gradle/gradle-distributions/releases/download/v\1/gradle-\1-\2.zip#' "$props"
+          version=$(sed -n -E 's#^distributionUrl=.*/gradle-([0-9.]+)-(bin|all)\.zip#\1-\2#p' "$props")
+          for url in \
+            "https\\://services.gradle.org/distributions/gradle-$version.zip" \
+            "https\\://downloads.gradle.org/distributions/gradle-$version.zip" \
+            "https\\://github.com/gradle/gradle-distributions/releases/download/v${version%-*}/gradle-$version.zip" \
+            "https\\://downloads.gradle.org/distributions/gradle-$version.zip"; do
+            sed -i "s#^distributionUrl=.*#distributionUrl=$url#" "$props"
             grep '^distributionUrl' "$props"
-            echo "Gradle download failed (attempt $attempt), retrying in 20 s from GitHub"
+            ./gradlew --no-daemon --version && exit 0
+            echo "Gradle download failed, trying the next host in 20 s"
             sleep 20
           done
           exit 1
