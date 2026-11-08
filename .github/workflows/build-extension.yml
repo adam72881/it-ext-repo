@@ -113,6 +113,17 @@ jobs:
           grep '^distribution' "$props"
           ./gradlew --no-daemon --version
 
+      # Google's mirror of Maven Central first: Maven Central sends some large jars
+      # (e.g. the Kotlin compiler) to GitHub release downloads, which at times fail with 504.
+      - name: Use the Maven Central mirror
+        working-directory: keiyoushi
+        run: |
+          for f in settings.gradle.kts gradle/build-logic/settings.gradle.kts; do
+            grep -q storage-download.googleapis.com "$f" || \
+              sed -i 's#^\(\s*\)mavenCentral()#\1maven(url = "https://maven-central.storage-download.googleapis.com/maven2/")\n\1mavenCentral()#' "$f"
+            grep -n -A1 'storage-download' "$f"
+          done
+
       - name: Format, build APK and JAR, and run release lint
         working-directory: keiyoushi
         env:
