@@ -98,7 +98,20 @@ jobs:
             echo "Gradle download failed, trying the next host in 20 s"
             sleep 20
           done
-          exit 1
+          # Last resort: a public mirror, accepted only with the official checksum
+          # (the wrapper then refuses any file that is not identical to Gradle's).
+          sha=$(curl -fsSL --max-time 60 "https://downloads.gradle.org/distributions/gradle-$version.zip.sha256" || true)
+          if [ -z "$sha" ]; then
+            case "$version" in
+              9.9.0-bin) sha=0b00b0ffe07c4d4789c12d4935a44a7057d55774b7540bd4a3f76f336deb177a ;;
+            esac
+          fi
+          [ -n "$sha" ] || exit 1
+          sed -i "s#^distributionUrl=.*#distributionUrl=https\\://mirrors.cloud.tencent.com/gradle/gradle-$version.zip#" "$props"
+          sed -i '/^distributionSha256Sum=/d' "$props"
+          echo "distributionSha256Sum=$sha" >> "$props"
+          grep '^distribution' "$props"
+          ./gradlew --no-daemon --version
 
       - name: Format, build APK and JAR, and run release lint
         working-directory: keiyoushi
