@@ -37,11 +37,12 @@ class CategoryGroup(options: List<TermOption>) : Filter.Group<TermOption>("Categ
 
 class TagGroup(options: List<TermOption>) : Filter.Group<TermOption>("Tag", options)
 
+// La prima è quella usata quando non si sceglie niente (Popolari, Più recenti, filtro).
 val SECTIONS = listOf(
+    Section("Tutti i fumetti", null, null),
     Section("Manga hentai", 342, "hentai-manga"),
     Section("Doujinshi", 11, "doujinshi-hentai"),
     Section("Fumetti porno", 363, "fumetti-porno"),
-    Section("Tutti i fumetti", null, null),
 )
 
 const val PREMIUM_CATEGORY_ID = 920

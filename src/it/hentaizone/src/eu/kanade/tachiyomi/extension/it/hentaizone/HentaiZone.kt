@@ -76,7 +76,7 @@ abstract class HentaiZone : KeiSource() {
                 val option = TermOption(search.text, id, "")
                 val genre = Query(
                     sort = SortMode.DATE,
-                    section = SECTIONS.last(),
+                    section = SECTIONS[0],
                     includedCategories = if (isTag) emptyList() else listOf(option),
                     includedTags = if (isTag) listOf(option) else emptyList(),
                 )

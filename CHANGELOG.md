@@ -1,5 +1,9 @@
 # Novità
 
+## Hentai Zone 1.6.12
+
+- **Più recenti** e **Popolari** mostrano **tutti i fumetti** (manga hentai, doujinshi e fumetti porno), non più solo i manga hentai. Anche il filtro **Sezione** parte da «Tutti i fumetti».
+
 ## Hentai ITA 1.6.11
 
 - **Icona nuova**: quadrato con angoli arrotondati e margine, nello stile delle altre estensioni (si vede meglio anche con il tema scuro).

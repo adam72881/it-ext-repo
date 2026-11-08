@@ -18,7 +18,7 @@ Le estensioni **anime/video per Mangayomi** non sono qui: stanno in
 
 | Estensione | Sito | Versione | Sorgente | `versionCode` |
 |---|---|---|---|---|
-| Hentai Zone | hentaizone.me | 1.6.11 | `src/it/hentaizone` | 11 |
+| Hentai Zone | hentaizone.me | 1.6.12 | `src/it/hentaizone` | 12 |
 | Hentai ITA | hentai-ita.net | 1.6.11 | `src/it/hentaiita` | 11 |
 | Hentai Archive | membri.premium-archive.com | 1.6.6 | `src/it/hentaiarchiveita` | 6 |
 
