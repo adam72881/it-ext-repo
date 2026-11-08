@@ -76,6 +76,19 @@ jobs:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: echo "$SIGNING_KEY" | base64 -d > keiyoushi/signingkey.jks
 
+      # services.gradle.org at times answers the runners slowly and the wrapper gives up
+      # after 10 s: longer timeout and a few tries just for the Gradle download.
+      - name: Download Gradle
+        working-directory: keiyoushi
+        run: |
+          sed -i 's/^networkTimeout=.*/networkTimeout=120000/' gradle/wrapper/gradle-wrapper.properties
+          for attempt in 1 2 3; do
+            ./gradlew --no-daemon --version && exit 0
+            echo "Gradle download failed (attempt $attempt), retrying in 20 s"
+            sleep 20
+          done
+          exit 1
+
       - name: Format, build APK and JAR, and run release lint
         working-directory: keiyoushi
         env:
